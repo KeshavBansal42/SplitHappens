@@ -12,6 +12,7 @@ import {
 import { requireAuth } from "../auth/privy.js";
 import { ApiError } from "../errors.js";
 import { prisma } from "../db.js";
+import { openSplitEscrow } from "../chain/escrow.js";
 import {
   getSplitOrThrow,
   joinSplit,
@@ -50,6 +51,17 @@ export function splitsRouter(): Router {
         },
         include: splitWithParticipants.include,
       });
+
+      try {
+        await openSplitEscrow(split.id, input.payeeAddress, input.totalAmount);
+      } catch (err) {
+        await prisma.split.delete({ where: { id: split.id } });
+        if (err instanceof ApiError) throw err;
+        throw new ApiError(
+          "CHAIN_ERROR",
+          "Failed to open the split on-chain",
+        );
+      }
 
       const body = createSplitResponseSchema.parse({
         id: split.id.toString(),
