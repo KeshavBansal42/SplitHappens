@@ -18,8 +18,9 @@
     "schema": "prisma/schema.prisma"
   },
   "dependencies": {
-    "@splithappens/shared": "workspace:*",
     "@prisma/client": "^5.22.0",
+    "@privy-io/server-auth": "^1.32.5",
+    "@splithappens/shared": "workspace:*",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
     "pino": "^9.6.0",
