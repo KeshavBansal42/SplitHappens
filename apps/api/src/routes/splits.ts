@@ -4,15 +4,25 @@ import {
   createSplitRequestSchema,
   createSplitResponseSchema,
   getSplitResponseSchema,
+  joinSplitRequestSchema,
+  joinSplitResponseSchema,
+  paySplitRequestSchema,
+  paySplitResponseSchema,
 } from "@splithappens/shared";
 import { requireAuth } from "../auth/privy.js";
 import { ApiError } from "../errors.js";
 import { prisma } from "../db.js";
 import {
   getSplitOrThrow,
+  joinSplit,
+  paySplit,
   splitWithParticipants,
 } from "../services/splits.js";
-import { mapSplitDetail } from "../services/serialize.js";
+import {
+  mapParticipant,
+  mapSplitDetail,
+} from "../services/serialize.js";
+import { parseBody } from "./helpers.js";
 
 function parseId(raw: string): bigint {
   const parsed = z.coerce.bigint().positive().safeParse(raw);
@@ -61,6 +71,38 @@ export function splitsRouter(): Router {
       const id = parseId(req.params.id);
       const split = await getSplitOrThrow(id);
       res.json(getSplitResponseSchema.parse(mapSplitDetail(split)));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post("/:id/join", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      const input = parseBody(joinSplitRequestSchema, req.body);
+      const user = req.user!;
+
+      await joinSplit(id, user.id, input.shareAmount);
+
+      const body = joinSplitResponseSchema.parse({
+        splitId: id.toString(),
+        userId: user.id,
+        shareAmount: input.shareAmount,
+      });
+      res.status(201).json(body);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post("/:id/pay", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      const input = parseBody(paySplitRequestSchema, req.body);
+      const user = req.user!;
+
+      const participant = await paySplit(id, user.id, input.txHash, input.amount);
+      res.json(paySplitResponseSchema.parse(mapParticipant(participant)));
     } catch (err) {
       next(err);
     }
