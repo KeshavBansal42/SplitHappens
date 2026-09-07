@@ -11,6 +11,7 @@ type Delegate = {
   update: ReturnType<typeof vi.fn>;
   upsert: ReturnType<typeof vi.fn>;
   aggregate: ReturnType<typeof vi.fn>;
+  delete: ReturnType<typeof vi.fn>;
   seed: (rows: Row[]) => void;
   clear: () => void;
 };
@@ -89,6 +90,12 @@ function makeDelegate(): Delegate {
       Object.assign(row, data);
       return row;
     }),
+    delete: vi.fn(async ({ where }: { where: { id: string | bigint } }) => {
+      const index = holder.current.findIndex((r) => r.id === where.id);
+      if (index === -1) throw new Error("delete: row not found");
+      const [removed] = holder.current.splice(index, 1);
+      return removed;
+    }),
     upsert: vi.fn(
       async ({
         where,
@@ -139,6 +146,7 @@ function makeDelegate(): Delegate {
       delegate.findMany.mockClear();
       delegate.create.mockClear();
       delegate.update.mockClear();
+      delegate.delete.mockClear();
       delegate.upsert.mockClear();
       delegate.aggregate.mockClear();
     },

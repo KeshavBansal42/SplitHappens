@@ -8,6 +8,12 @@ vi.mock("../db.js", async () => {
   return { prisma: createFakePrisma() };
 });
 
+vi.mock("../chain/escrow.js", async () => {
+  const { createMockEscrow } = await import("../test/mockEscrow.js");
+  const mock = createMockEscrow();
+  return { openSplitEscrow: mock.openSplitEscrow };
+});
+
 import { prisma } from "../db.js";
 
 const db = prisma as unknown as FakePrisma;
