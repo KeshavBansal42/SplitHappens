@@ -12,6 +12,7 @@ export type ErrorCode =
   | "SHARE_OVERFLOW"
   | "ALREADY_PAID"
   | "PAYMENT_PENDING"
+  | "CHAIN_ERROR"
   | "INTERNAL_ERROR";
 
 const STATUS_BY_CODE: Record<ErrorCode, number> = {
@@ -24,6 +25,7 @@ const STATUS_BY_CODE: Record<ErrorCode, number> = {
   SHARE_OVERFLOW: 422,
   ALREADY_PAID: 409,
   PAYMENT_PENDING: 409,
+  CHAIN_ERROR: 502,
   INTERNAL_ERROR: 500,
 };
 
