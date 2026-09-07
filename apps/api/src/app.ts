@@ -2,6 +2,7 @@ import express from "express";
 import { pinoHttp } from "pino-http";
 import { errorHandler, notFoundHandler } from "./errors.js";
 import { logger } from "./logger.js";
+import { splitsRouter } from "./routes/splits.js";
 
 export function createApp(): express.Express {
   const app = express();
@@ -13,6 +14,8 @@ export function createApp(): express.Express {
   app.get("/health", (_req, res) => {
     res.json({ status: "ok" });
   });
+
+  app.use("/api/v1/splits", splitsRouter());
 
   app.use(notFoundHandler);
   app.use(errorHandler);
