@@ -133,6 +133,10 @@ All routes live under `/api/v1` and (except `/health`) require
 | `POST` | `/api/v1/splits/:id/pay` | Record the deposit txHash + amount |
 | `GET` | `/api/v1/splits/:id/status` | Dashboard poll — db + on-chain state |
 
+The `/pay` handshake (request shape, response, error codes, lifecycle) is
+documented and captured live in
+[`docs/api-pay-handshake.md`](docs/api-pay-handshake.md).
+
 ```bash
 # dev-mode example
 curl -X POST localhost:4000/api/v1/splits \
