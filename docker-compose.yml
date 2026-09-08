@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: splitstream-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: splitstream
+      POSTGRES_PASSWORD: splitstream
+      POSTGRES_DB: splitstream
+    ports:
+      - "5432:5432"
+    volumes:
+      - splitstream_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U splitstream -d splitstream"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  splitstream_pgdata:
