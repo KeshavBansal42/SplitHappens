@@ -112,7 +112,11 @@ export function PayMyShare({
       )}
 
       {status.status === "idle" && (
-        <button onClick={pay} disabled={!canPay || insufficient || missingToken}>
+        <button
+          className="btn btn-primary"
+          onClick={() => void pay()}
+          disabled={!canPay || insufficient || missingToken}
+        >
           Pay my share
         </button>
       )}
@@ -126,7 +130,11 @@ export function PayMyShare({
       {status.status === "approved" && (
         <p>
           Escrow approved.{" "}
-          <button onClick={pay} disabled={!canPay || insufficient}>
+          <button
+            className="btn btn-primary"
+            onClick={() => void pay()}
+            disabled={!canPay || insufficient}
+          >
             Confirm deposit
           </button>
         </p>
@@ -135,6 +143,7 @@ export function PayMyShare({
         <p>
           Payment sent.{" "}
           <a
+            className="btn btn-ghost"
             href={`https://testnet.arcscan.app/tx/${status.txHash}`}
             target="_blank"
             rel="noreferrer"
@@ -146,7 +155,10 @@ export function PayMyShare({
       )}
       {status.status === "error" && (
         <p>
-          {status.message} <button onClick={pay}>Retry</button>
+          {status.message}{" "}
+          <button className="btn btn-ghost" onClick={() => void pay()}>
+            Retry
+          </button>
         </p>
       )}
     </div>

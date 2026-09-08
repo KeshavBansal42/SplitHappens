@@ -87,9 +87,9 @@ with a World (*Selfie Check*) stretch.
 
 ```
 apps/api         Backend — Express API, prisma schema, chain watchers
-apps/web         Frontend placeholder (auth + UI land here)
+apps/web         Frontend — React + Privy login, embedded wallet, pay flow
 packages/shared  Frozen API contract: zod schemas + types shared by api/web
-contracts/       Escrow interface spec + ABI fragment (contract lead handoff)
+contracts/       SplitEscrow contract, deploy script, hardhat tasks + tests
 docker-compose   Local Postgres 16
 ```
 
@@ -108,10 +108,14 @@ cp .env.example .env
 #    fill in DATABASE_URL, and either AUTH_MODE=privy with Privy keys,
 #    or AUTH_MODE=dev for header-based local auth.
 
-# 3. migrate and run
+# 3. migrate and run the api
 pnpm --filter @splithappens/api db:migrate
 pnpm --filter @splithappens/api db:generate
 pnpm dev:api                  # http://localhost:4000
+
+# 4. run the web app (separate terminal)
+cp apps/web/.env.example apps/web/.env   # add your VITE_PRIVY_APP_ID
+pnpm --filter @splithappens/web dev      # http://localhost:5173
 ```
 
 The chain watchers need `USDC_ADDRESS`, `ESCROW_ADDRESS` (from the contract

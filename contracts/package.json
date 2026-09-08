@@ -1,19 +1,18 @@
 {
-  "name": "splitstream-contracts",
+  "name": "splithappens-contracts",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "description": "SplitEscrow contract, deployment scripts, and hardhat tasks",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "hardhat test",
+    "compile": "hardhat compile",
+    "deploy": "node scripts/deploy.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "chai": "^4.3.10",
     "dotenv": "^17.4.2",
     "hardhat": "^2.29.1",
-    "solc": "^0.8.24",
-    "chai": "^4.3.10"
+    "solc": "^0.8.24"
   }
 }

@@ -10,6 +10,7 @@ export function LoginButton() {
   if (authenticated) {
     return (
       <button
+        className="btn btn-ghost"
         onClick={async () => {
           setBusy(true);
           try {
@@ -25,5 +26,9 @@ export function LoginButton() {
     );
   }
 
-  return <button onClick={() => login()}>Log in</button>;
+  return (
+    <button className="btn btn-primary" onClick={() => void login()}>
+      Log in
+    </button>
+  );
 }

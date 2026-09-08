@@ -8,7 +8,19 @@ import { PayMyShare } from "../components/PayMyShare";
 import { shortAddress } from "../lib/format";
 import { ESCROW_ADDRESS } from "../lib/env";
 import type { ApiClientError } from "../api/client";
-import type { SplitStatusResponse } from "@splitstream/shared";
+import type { SplitStatusResponse } from "@splithappens/shared";
+
+const STATUS_LABEL: Record<string, string> = {
+  pending: "Pending",
+  partially_paid: "Active",
+  released: "Released",
+};
+
+const STATUS_CLASS: Record<string, string> = {
+  pending: "badge-pending",
+  partially_paid: "badge-partial",
+  released: "badge-released",
+};
 
 export function SplitPage() {
   const { id } = useParams<{ id: string }>();
@@ -83,125 +95,228 @@ export function SplitPage() {
 
   if (loadError) {
     return (
-      <main>
+      <>
         <p className="error">{loadError}</p>
-        <Link to="/">← Back home</Link>
-      </main>
+        <Link className="btn btn-ghost" to="/">
+          ← Back home
+        </Link>
+      </>
     );
   }
 
   if (!status) {
     return (
-      <main>
+      <>
         <p>Loading split…</p>
-        <Link to="/">← Back home</Link>
-      </main>
+        <Link className="btn btn-ghost" to="/">
+          ← Back home
+        </Link>
+      </>
     );
   }
 
   const split = status.split;
+  const target = Number(split.totalAmount) || 0;
+  const collected = Number(status.onChain.collected) || 0;
+  const collectedPct = target > 0 ? Math.round((collected / target) * 100) : 0;
   const myParticipant = status.participants.find(
     (p) => myUserId && p.userId === myUserId,
   );
   const balance = balanceState.status === "ok" ? balanceState.amount : null;
+  const badge = STATUS_CLASS[split.status] ?? "badge-pending";
 
   return (
-    <main>
-      <header>
-        <h1>{split.title}</h1>
-        <p>
-          <Link to="/">← Home</Link>
-        </p>
-      </header>
+    <>
+      <div
+        className="page-header"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--sp-3)",
+              marginBottom: "var(--sp-2)",
+            }}
+          >
+            <Link
+              className="btn btn-ghost btn-icon"
+              to="/"
+              style={{ marginLeft: "-0.5rem" }}
+            >
+              ←
+            </Link>
+            <h1 className="page-title" style={{ marginBottom: 0 }}>
+              {split.title}
+            </h1>
+          </div>
+        </div>
+        <span className={`badge ${badge}`}>
+          <span className="badge-dot" />
+          {STATUS_LABEL[split.status] ?? split.status}
+        </span>
+      </div>
 
-      <section className="card">
-        <h2>Details</h2>
-        <p>
-          Total: <strong>{split.totalAmount} USDC</strong> · Status:{" "}
-          <strong>{split.status}</strong>
-        </p>
-        <p>
-          Payee:{" "}
-          <code title={split.payeeAddress}>
-            {shortAddress(split.payeeAddress)}
-          </code>
-        </p>
-        <p>
-          Collected on chain: {status.onChain.collected} / {status.onChain.target}{" "}
-          USDC
-        </p>
-      </section>
-
-      <section className="card">
-        <h2>Participants</h2>
-        {status.participants.length === 0 && <p>No one has joined yet.</p>}
-        <ul>
-          {status.participants.map((p) => {
-            const isMe = myUserId && p.userId === myUserId;
-            return (
-              <li key={p.id}>
-                {isMe
-                  ? "You"
-                  : shortAddress(p.walletAddress ?? p.userId)}{" "}
-                — {p.shareAmount} USDC · {p.paid ? "paid ✓" : "not paid"}
-                {p.txHash && !p.paid ? " (confirming…)" : ""}
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-
-      {myParticipant ? (
-        <section className="card">
-          <h2>Pay your share</h2>
-          <p>
-            Your share: {myParticipant.shareAmount} USDC
-            {myParticipant.paid ? " — already paid ✓" : ""}
-          </p>
-          {split.status === "released" ? (
-            <p>This split is released — funds went to the payee.</p>
-          ) : (
-            <>
-              {!myParticipant.paid && !ESCROW_ADDRESS && (
-                <p>
-                  The escrow contract is not deployed yet. Set{" "}
-                  <code>VITE_ESCROW_ADDRESS</code> to enable payments.
-                </p>
-              )}
-              {!myParticipant.paid && ESCROW_ADDRESS && (
-                <PayMyShare
-                  splitId={split.id}
-                  amount={myParticipant.shareAmount}
-                  escrowAddress={ESCROW_ADDRESS}
-                  balance={balance}
-                  onSuccess={reportPayment}
+      <div className="detail-grid">
+        <div className="detail-summary">
+          <div className="detail-amount-display">
+            <div className="detail-amount-label">Total Amount</div>
+            <div className="detail-amount-value">
+              {split.totalAmount} USDC
+            </div>
+            <div className="detail-amount-sub">
+              {status.onChain.collected} collected · {collectedPct}% funded
+            </div>
+            <div style={{ padding: "0 var(--sp-8)", marginTop: "var(--sp-4)" }}>
+              <div className="progress-bar" style={{ height: "0.375rem" }}>
+                <div
+                  className="progress-fill"
+                  style={{ width: `${Math.min(collectedPct, 100)}%` }}
                 />
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <h3 style={{ marginBottom: "var(--sp-4)" }}>Split Details</h3>
+            <div className="detail-info-grid">
+              <div className="detail-info-item">
+                <span className="detail-info-label">Payee Address</span>
+                <span
+                  className="detail-info-value"
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: "var(--text-xs)",
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {shortAddress(split.payeeAddress)}
+                </span>
+              </div>
+              <div className="detail-info-item">
+                <span className="detail-info-label">Participants</span>
+                <span className="detail-info-value">
+                  {status.participants.length}
+                </span>
+              </div>
+              <div className="detail-info-item">
+                <span className="detail-info-label">Network</span>
+                <span className="detail-info-value">Arc Testnet</span>
+              </div>
+              <div className="detail-info-item">
+                <span className="detail-info-label">Currency</span>
+                <span className="detail-info-value">USDC</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-6)" }}>
+          <div className="card">
+            <h3 style={{ marginBottom: "var(--sp-4)" }}>Participants</h3>
+            {status.participants.length === 0 && (
+              <p className="empty-state-title">No one has joined yet.</p>
+            )}
+            <div className="participant-list">
+              {status.participants.map((p) => {
+                const isMe = myUserId && p.userId === myUserId;
+                return (
+                  <div key={p.id} className="participant-row">
+                    <div className="participant-avatar">
+                      {(p.walletAddress ?? p.userId).slice(2, 4).toUpperCase()}
+                    </div>
+                    <div className="participant-info">
+                      <div className="participant-name">
+                        {isMe
+                          ? "You"
+                          : shortAddress(p.walletAddress ?? p.userId)}
+                        {isMe && (
+                          <span className="participant-you-tag">YOU</span>
+                        )}
+                      </div>
+                      <div className="participant-address">
+                        {p.shareAmount} USDC share
+                      </div>
+                    </div>
+                    <div className="participant-amount">
+                      {p.paid ? "Paid" : "Pending"}
+                    </div>
+                    <div
+                      className={`participant-status ${p.paid ? "paid" : "unpaid"}`}
+                    >
+                      {p.txHash && !p.paid ? "confirming…" : ""}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {myParticipant ? (
+            <div className="card">
+              <h3 style={{ marginBottom: "var(--sp-2)" }}>Pay your share</h3>
+              <p className="pay-cta-amount">
+                {myParticipant.shareAmount} USDC
+                {myParticipant.paid ? " — already paid ✓" : ""}
+              </p>
+              {split.status === "released" ? (
+                <p>This split is released — funds went to the payee.</p>
+              ) : (
+                <>
+                  {!myParticipant.paid && !ESCROW_ADDRESS && (
+                    <p>
+                      The escrow contract is not configured. Set{" "}
+                      <code>VITE_ESCROW_ADDRESS</code> to enable payments.
+                    </p>
+                  )}
+                  {!myParticipant.paid && ESCROW_ADDRESS && (
+                    <PayMyShare
+                      splitId={split.id}
+                      amount={myParticipant.shareAmount}
+                      escrowAddress={ESCROW_ADDRESS}
+                      balance={balance}
+                      onSuccess={reportPayment}
+                    />
+                  )}
+                  {paymentReport && <p className="error">{paymentReport}</p>}
+                </>
               )}
-              {paymentReport && <p className="error">{paymentReport}</p>}
-            </>
+            </div>
+          ) : split.status === "released" ? (
+            <p>This split is released.</p>
+          ) : (
+            <div className="card">
+              <h3 style={{ marginBottom: "var(--sp-2)" }}>Join this split</h3>
+              <p style={{ marginBottom: "var(--sp-4)" }}>
+                Add your share to start paying toward the total.
+              </p>
+              <div className="form-group">
+                <label className="form-label">Your share (USDC)</label>
+                <input
+                  className="form-input"
+                  value={shareAmount}
+                  onChange={(e) => setShareAmount(e.target.value)}
+                  placeholder="40.00"
+                  inputMode="decimal"
+                />
+              </div>
+              <button
+                className="btn btn-primary"
+                onClick={() => void join()}
+                disabled={joinBusy || !shareAmount}
+              >
+                {joinBusy ? "Joining…" : "Join"}
+              </button>
+              {joinError && <p className="error">{joinError}</p>}
+            </div>
           )}
-        </section>
-      ) : split.status === "released" ? (
-        <p>This split is released.</p>
-      ) : (
-        <section className="card">
-          <h2>Join this split</h2>
-          <p>Add your share to start paying toward the total.</p>
-          <label>
-            Your share (USDC){" "}
-            <input
-              value={shareAmount}
-              onChange={(e) => setShareAmount(e.target.value)}
-              placeholder="40.00"
-              inputMode="decimal"
-            />
-          </label>{" "}
-          <button onClick={join} disabled={joinBusy || !shareAmount}>
-            {joinBusy ? "Joining…" : "Join"}
-          </button>
-          {joinError && <p className="error">{joinError}</p>}
-        </section>
-      )}
-    </main>
+        </div>
+      </div>
+    </>
   );
 }

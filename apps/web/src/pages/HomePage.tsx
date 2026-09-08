@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { usePrivy } from "@privy-io/react-auth";
 import { useApi } from "../api/ApiProvider";
 import { WalletCard } from "../components/WalletCard";
 import type { ApiClientError } from "../api/client";
 
 type SavedSplit = { id: string; title: string; totalAmount: string };
 
-const STORAGE_KEY = "splitstream.my-splits";
+const STORAGE_KEY = "splithappens.my-splits";
 
 function loadSplits(): SavedSplit[] {
   try {
@@ -24,7 +23,6 @@ function saveSplit(split: SavedSplit) {
 }
 
 export function HomePage() {
-  const { user } = usePrivy();
   const { api } = useApi();
   const navigate = useNavigate();
 
@@ -33,10 +31,6 @@ export function HomePage() {
   const [payeeAddress, setPayeeAddress] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const email =
-    (user?.email as { address?: string } | undefined)?.address ??
-    "anonymous user";
 
   const createSplit = async () => {
     if (!api) return;
@@ -64,75 +58,81 @@ export function HomePage() {
   const mySplits = loadSplits();
 
   return (
-    <main>
-      <header>
-        <h1>SplitStream</h1>
-        <p>Welcome, {email}</p>
-      </header>
+    <>
+      <div className="page-header">
+        <h1 className="page-title">Dashboard</h1>
+        <p className="page-subtitle">
+          Create a shared expense, then share the link so others can join
+        </p>
+      </div>
 
       <WalletCard />
 
-      <section className="card">
-        <h2>Create a shared expense</h2>
+      <section className="card" style={{ marginTop: "var(--sp-6)" }}>
+        <h2 style={{ marginBottom: "var(--sp-4)" }}>Create a shared expense</h2>
         <form
           onSubmit={(e) => {
             e.preventDefault();
             void createSplit();
           }}
         >
-          <div>
-            <label>
-              Title{" "}
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Dinner with friends"
-              />
-            </label>
+          <div className="form-group">
+            <label className="form-label">Title</label>
+            <input
+              className="form-input"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Dinner with friends"
+            />
           </div>
-          <div>
-            <label>
-              Total amount (USDC){" "}
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Total amount (USDC)</label>
               <input
+                className="form-input"
                 value={totalAmount}
                 onChange={(e) => setTotalAmount(e.target.value)}
                 placeholder="120.00"
                 inputMode="decimal"
               />
-            </label>
-          </div>
-          <div>
-            <label>
-              Payee wallet address{" "}
+            </div>
+            <div className="form-group">
+              <label className="form-label">Payee wallet address</label>
               <input
+                className="form-input"
                 value={payeeAddress}
                 onChange={(e) => setPayeeAddress(e.target.value)}
                 placeholder="0x…"
                 style={{ width: "100%" }}
               />
-            </label>
+            </div>
           </div>
           {error && <p className="error">{error}</p>}
-          <button type="submit" disabled={busy || !title || !totalAmount || !payeeAddress}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={busy || !title || !totalAmount || !payeeAddress}
+          >
             {busy ? "Creating…" : "Create split"}
           </button>
         </form>
       </section>
 
       {mySplits.length > 0 && (
-        <section className="card">
-          <h2>Your splits</h2>
-          <ul>
+        <section className="card" style={{ marginTop: "var(--sp-6)" }}>
+          <h2 style={{ marginBottom: "var(--sp-4)" }}>Your splits</h2>
+          <div className="split-list">
             {mySplits.map((s) => (
-              <li key={s.id}>
-                <Link to={`/splits/${s.id}`}>
-                  {s.title} — {s.totalAmount} USDC
-                </Link>
-              </li>
+              <Link key={s.id} to={`/splits/${s.id}`} className="split-row">
+                <div className="split-info">
+                  <div className="split-title">{s.title}</div>
+                </div>
+                <div className="split-amount">{s.totalAmount} USDC</div>
+              </Link>
             ))}
-          </ul>
+          </div>
         </section>
       )}
-    </main>
+    </>
   );
 }

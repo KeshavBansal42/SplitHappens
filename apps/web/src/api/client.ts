@@ -7,7 +7,7 @@ import type {
   PaySplitRequest,
   Participant,
   SplitStatusResponse,
-} from "@splitstream/shared";
+} from "@splithappens/shared";
 
 export type ApiAuth =
   | { mode: "privy"; getAccessToken: () => Promise<string | null> }

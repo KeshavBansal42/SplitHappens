@@ -1,4 +1,4 @@
-const KEY = "splitstream.my-user-id";
+const KEY = "splithappens.my-user-id";
 
 export function getMyUserId(): string | null {
   return localStorage.getItem(KEY);
