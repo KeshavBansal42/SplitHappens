@@ -1,0 +1,70 @@
+// SplitStream data model
+//
+// Design notes:
+// - Split.id is a Postgres BIGSERIAL whose integer value doubles as the
+//   on-chain splitId (uint256). No separate counter is needed.
+// - Money is stored as Decimal(36, 6) USDC token units and serialized as
+//   strings over the API; never as floats.
+// - verifiedHuman / requireVerification are the World Selfie Check stretch
+//   fields. They default to false and are inert until that feature ships.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SplitStatus {
+  PENDING
+  PARTIALLY_PAID
+  RELEASED
+}
+
+model User {
+  id            String   @id @default(cuid())
+  privyUserId   String   @unique
+  walletAddress String?
+  verifiedHuman Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  participants  SplitParticipant[]
+
+  @@map("users")
+}
+
+model Split {
+  id                  BigInt   @id @default(autoincrement())
+  title               String
+  totalAmount         Decimal  @db.Decimal(36, 6)
+  payeeAddress        String
+  requireVerification Boolean  @default(false)
+  status              SplitStatus @default(PENDING)
+  releaseTxHash       String?
+  releasedAt          DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  participants        SplitParticipant[]
+
+  @@map("splits")
+}
+
+model SplitParticipant {
+  id          String   @id @default(cuid())
+  splitId     BigInt
+  userId      String
+  shareAmount Decimal  @db.Decimal(36, 6)
+  paid        Boolean  @default(false)
+  txHash      String?
+  confirmedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  split       Split    @relation(fields: [splitId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([splitId, userId])
+  @@index([splitId])
+  @@map("split_participants")
+}
