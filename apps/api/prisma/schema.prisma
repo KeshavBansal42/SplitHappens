@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SplitStatus {
+  PENDING
+  PARTIALLY_PAID
+  RELEASED
+}
+
+model User {
+  id            String   @id @default(cuid())
+  privyUserId   String   @unique
+  walletAddress String?
+  verifiedHuman Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  participants  SplitParticipant[]
+
+  @@map("users")
+}
+
+model Split {
+  id                  BigInt   @id @default(autoincrement())
+  title               String
+  totalAmount         Decimal  @db.Decimal(36, 6)
+  payeeAddress        String
+  requireVerification Boolean  @default(false)
+  status              SplitStatus @default(PENDING)
+  releaseTxHash       String?
+  releasedAt          DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  participants        SplitParticipant[]
+
+  @@map("splits")
+}
+
+model SplitParticipant {
+  id          String   @id @default(cuid())
+  splitId     BigInt
+  userId      String
+  shareAmount Decimal  @db.Decimal(36, 6)
+  paid        Boolean  @default(false)
+  txHash      String?
+  confirmedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  split       Split    @relation(fields: [splitId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([splitId, userId])
+  @@index([splitId])
+  @@map("split_participants")
+}
