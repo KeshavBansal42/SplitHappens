@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: splithappens
       POSTGRES_DB: splithappens
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-15432}:5432"
     volumes:
       - splithappens_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -16,6 +16,63 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: splitstream-api
+    container_name: splitstream-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://splitstream:splitstream@postgres:5432/splitstream
+      PORT: "4000"
+      AUTH_MODE: ${AUTH_MODE:-dev}
+      PRIVY_APP_ID: ${PRIVY_APP_ID:-}
+      PRIVY_APP_SECRET: ${PRIVY_APP_SECRET:-}
+      ARC_RPC_URL: ${ARC_RPC_URL:-https://rpc.testnet.arc.network}
+      ARC_CHAIN_ID: ${ARC_CHAIN_ID:-5042002}
+      USDC_ADDRESS: ${USDC_ADDRESS:-0x0000000000000000000000000000000000000000}
+      ESCROW_ADDRESS: ${ESCROW_ADDRESS:-0x0000000000000000000000000000000000000000}
+      RELEASER_PRIVATE_KEY: ${RELEASER_PRIVATE_KEY:-0x0000000000000000000000000000000000000000000000000000000000000001}
+      WATCH_INTERVAL_MS: ${WATCH_INTERVAL_MS:-10000}
+      CONFIRM_INTERVAL_MS: ${CONFIRM_INTERVAL_MS:-5000}
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_PRIVY_APP_ID: ${PRIVY_APP_ID:-}
+        VITE_ARC_RPC_URL: ${ARC_RPC_URL:-https://rpc.testnet.arc.network}
+        VITE_USDC_ADDRESS: ${USDC_ADDRESS:-}
+        VITE_ESCROW_ADDRESS: ${ESCROW_ADDRESS:-}
+        VITE_DEV_USER_ID: ${VITE_DEV_USER_ID:-}
+        VITE_DEV_WALLET: ${VITE_DEV_WALLET:-}
+    image: splitstream-web
+    container_name: splitstream-web
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
 volumes:
   splithappens_pgdata:
