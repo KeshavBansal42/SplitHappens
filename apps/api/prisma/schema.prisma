@@ -14,13 +14,15 @@ enum SplitStatus {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  privyUserId   String   @unique
-  walletAddress String?
-  verifiedHuman Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  participants  SplitParticipant[]
+  id             String   @id @default(cuid())
+  privyUserId    String   @unique
+  email          String?
+  walletAddress  String?
+  verifiedHuman  Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  participants   SplitParticipant[]
+  claimedInvites SplitInvite[] @relation("claimed")
 
   @@map("users")
 }
@@ -31,12 +33,14 @@ model Split {
   totalAmount         Decimal  @db.Decimal(36, 6)
   payeeAddress        String
   requireVerification Boolean  @default(false)
+  participantCount    Int      @default(1)
   status              SplitStatus @default(PENDING)
   releaseTxHash       String?
   releasedAt          DateTime?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
   participants        SplitParticipant[]
+  invites             SplitInvite[]
 
   @@map("splits")
 }
@@ -57,4 +61,20 @@ model SplitParticipant {
   @@unique([splitId, userId])
   @@index([splitId])
   @@map("split_participants")
+}
+
+model SplitInvite {
+  id              String   @id @default(cuid())
+  splitId         BigInt
+  email           String
+  shareAmount     Decimal  @db.Decimal(36, 6)
+  claimedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  split           Split    @relation(fields: [splitId], references: [id])
+  claimedBy       User?    @relation("claimed", fields: [claimedByUserId], references: [id])
+
+  @@unique([splitId, email])
+  @@index([splitId])
+  @@map("split_invites")
 }
