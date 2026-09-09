@@ -7,6 +7,7 @@ import { logger } from "../logger.js";
 export type AuthedUser = {
   id: string;
   privyUserId: string;
+  email: string | null;
   walletAddress: string | null;
   verifiedHuman: boolean;
 };
@@ -22,21 +23,37 @@ async function getPrivyClient() {
   return privyClient;
 }
 
-async function upsertUser(privyUserId: string, walletAddress: string | null) {
+async function upsertUser(
+  privyUserId: string,
+  walletAddress: string | null,
+  email: string | null,
+) {
   return prisma.user.upsert({
     where: { privyUserId },
-    create: { privyUserId, walletAddress },
-    update: {},
+    create: { privyUserId, walletAddress, email },
+    update: email ? { email } : {},
   });
 }
 
 async function verifyPrivyToken(token: string): Promise<AuthedUser> {
   try {
-    const claims = await (await getPrivyClient()).verifyAuthToken(token);
-    const user = await upsertUser(claims.userId, null);
+    const client = await getPrivyClient();
+    const claims = await client.verifyAuthToken(token);
+
+    let email: string | null = null;
+    try {
+      const privyUser = await client.getUser({ idToken: token });
+      const linked = privyUser.email as { address?: string } | undefined;
+      email = linked?.address?.toLowerCase() ?? null;
+    } catch {
+      email = null;
+    }
+
+    const user = await upsertUser(claims.userId, null, email);
     return {
       id: user.id,
       privyUserId: user.privyUserId,
+      email: user.email,
       walletAddress: user.walletAddress,
       verifiedHuman: user.verifiedHuman,
     };
@@ -53,10 +70,16 @@ async function verifyDevHeaders(req: Request): Promise<AuthedUser> {
       "Missing x-dev-user-id header (AUTH_MODE=dev)",
     );
   }
-  const user = await upsertUser(`dev:${devUserId}`, req.header("x-dev-wallet") ?? null);
+  const email = req.header("x-dev-email")?.toLowerCase() ?? null;
+  const user = await upsertUser(
+    `dev:${devUserId}`,
+    req.header("x-dev-wallet") ?? null,
+    email,
+  );
   return {
     id: user.id,
     privyUserId: user.privyUserId,
+    email: user.email,
     walletAddress: user.walletAddress,
     verifiedHuman: user.verifiedHuman,
   };
