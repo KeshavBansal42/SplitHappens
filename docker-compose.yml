@@ -58,8 +58,8 @@ services:
         VITE_ARC_RPC_URL: ${ARC_RPC_URL:-https://rpc.testnet.arc.network}
         VITE_USDC_ADDRESS: ${USDC_ADDRESS:-}
         VITE_ESCROW_ADDRESS: ${ESCROW_ADDRESS:-}
-        VITE_DEV_USER_ID: ${VITE_DEV_USER_ID:-dev-user}
-        VITE_DEV_WALLET: ${VITE_DEV_WALLET:-0x0000000000000000000000000000000000000001}
+        VITE_DEV_USER_ID: ${VITE_DEV_USER_ID:-}
+        VITE_DEV_WALLET: ${VITE_DEV_WALLET:-}
     image: splitstream-web
     container_name: splitstream-web
     restart: unless-stopped
