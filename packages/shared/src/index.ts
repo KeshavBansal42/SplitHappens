@@ -28,26 +28,11 @@ export const txHashSchema = z
 
 const dateTimeSchema = z.string().datetime({ offset: true });
 
-export const createSplitRequestSchema = z.object({
-  title: z.string().trim().min(1, "title is required").max(120),
-  totalAmount: amountStringSchema,
-  payeeAddress: evmAddressSchema,
-  requireVerification: z.boolean().optional(),
-});
-
-export type CreateSplitRequest = z.infer<typeof createSplitRequestSchema>;
-
-export const createSplitResponseSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  totalAmount: z.string(),
-  payeeAddress: z.string(),
-  requireVerification: z.boolean(),
-  status: splitStatusSchema,
-  createdAt: dateTimeSchema,
-});
-
-export type CreateSplitResponse = z.infer<typeof createSplitResponseSchema>;
+export const emailSchema = z
+  .string()
+  .trim()
+  .email("must be a valid email")
+  .transform((v) => v.toLowerCase());
 
 export const participantSchema = z.object({
   id: z.string(),
@@ -61,17 +46,61 @@ export const participantSchema = z.object({
 
 export type Participant = z.infer<typeof participantSchema>;
 
+export const inviteSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  shareAmount: z.string(),
+  claimed: z.boolean(),
+});
+
+export type SplitInvite = z.infer<typeof inviteSchema>;
+
+export const createSplitRequestSchema = z
+  .object({
+    title: z.string().trim().min(1, "title is required").max(120),
+    totalAmount: amountStringSchema,
+    payeeAddress: evmAddressSchema,
+    participantCount: z.number().int().min(2, "a split needs at least two people"),
+    invites: z
+      .array(z.object({ email: emailSchema }))
+      .max(100, "too many invites"),
+    requireVerification: z.boolean().optional(),
+  })
+  .refine((v) => v.invites.length === v.participantCount - 1, {
+    message: "invites must equal participantCount minus one",
+    path: ["invites"],
+  });
+
+export type CreateSplitRequest = z.infer<typeof createSplitRequestSchema>;
+
+export const createSplitResponseSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  totalAmount: z.string(),
+  payeeAddress: z.string(),
+  requireVerification: z.boolean(),
+  participantCount: z.number().int(),
+  status: splitStatusSchema,
+  createdAt: dateTimeSchema,
+  participants: z.array(participantSchema),
+  invites: z.array(inviteSchema),
+});
+
+export type CreateSplitResponse = z.infer<typeof createSplitResponseSchema>;
+
 export const splitDetailSchema = z.object({
   id: z.string(),
   title: z.string(),
   totalAmount: z.string(),
   payeeAddress: z.string(),
   requireVerification: z.boolean(),
+  participantCount: z.number().int(),
   status: splitStatusSchema,
   releaseTxHash: z.string().nullable(),
   releasedAt: dateTimeSchema.nullable(),
   createdAt: dateTimeSchema,
   participants: z.array(participantSchema),
+  invites: z.array(inviteSchema),
 });
 
 export type SplitDetail = z.infer<typeof splitDetailSchema>;
@@ -79,9 +108,7 @@ export type SplitDetail = z.infer<typeof splitDetailSchema>;
 export const getSplitResponseSchema = splitDetailSchema;
 export type GetSplitResponse = SplitDetail;
 
-export const joinSplitRequestSchema = z.object({
-  shareAmount: amountStringSchema,
-});
+export const joinSplitRequestSchema = z.object({});
 
 export type JoinSplitRequest = z.infer<typeof joinSplitRequestSchema>;
 
@@ -92,6 +119,12 @@ export const joinSplitResponseSchema = z.object({
 });
 
 export type JoinSplitResponse = z.infer<typeof joinSplitResponseSchema>;
+
+export const addInvitesRequestSchema = z.object({
+  emails: z.array(emailSchema).min(1, "at least one email is required"),
+});
+
+export type AddInvitesRequest = z.infer<typeof addInvitesRequestSchema>;
 
 export const paySplitRequestSchema = z.object({
   txHash: txHashSchema,
@@ -111,17 +144,15 @@ export const splitStatusResponseSchema = z.object({
     totalAmount: z.string(),
     payeeAddress: z.string(),
     requireVerification: z.boolean(),
+    participantCount: z.number().int(),
   }),
   onChain: z.object({
     collected: z.string(),
     target: z.string(),
     released: z.boolean(),
   }),
-  participants: z.array(
-    participantSchema.extend({
-      walletAddress: z.string().nullable(),
-    }),
-  ),
+  participants: z.array(participantSchema),
+  invites: z.array(inviteSchema),
 });
 
 export type SplitStatusResponse = z.infer<typeof splitStatusResponseSchema>;
