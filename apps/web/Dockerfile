@@ -1,0 +1,25 @@
+FROM node:22-slim AS build
+RUN corepack enable
+WORKDIR /app
+
+ARG VITE_PRIVY_APP_ID=
+ARG VITE_ARC_RPC_URL=https://rpc.testnet.arc.network
+ARG VITE_USDC_ADDRESS=
+ARG VITE_ESCROW_ADDRESS=
+ARG VITE_DEV_USER_ID=
+ARG VITE_DEV_WALLET=
+ENV VITE_PRIVY_APP_ID=$VITE_PRIVY_APP_ID \
+    VITE_ARC_RPC_URL=$VITE_ARC_RPC_URL \
+    VITE_USDC_ADDRESS=$VITE_USDC_ADDRESS \
+    VITE_ESCROW_ADDRESS=$VITE_ESCROW_ADDRESS \
+    VITE_DEV_USER_ID=$VITE_DEV_USER_ID \
+    VITE_DEV_WALLET=$VITE_DEV_WALLET
+
+COPY . .
+RUN pnpm install --frozen-lockfile --filter "@splitstream/web..."
+RUN pnpm --filter "@splitstream/web..." build
+
+FROM nginx:1.27-alpine
+COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+EXPOSE 80
