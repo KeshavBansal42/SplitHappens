@@ -5,10 +5,12 @@ import {
   amountToUnits,
   decimalToUnits,
 } from "../chain/units.js";
+import { computeShares } from "./shares.js";
 
 export const splitWithParticipants = Prisma.validator<Prisma.SplitDefaultArgs>()({
   include: {
     participants: { include: { user: true } },
+    invites: { orderBy: { createdAt: "asc" } },
   },
 });
 
@@ -25,7 +27,51 @@ export async function getSplitOrThrow(id: bigint): Promise<SplitWithParticipants
   return split;
 }
 
-export async function joinSplit(splitId: bigint, userId: string, shareAmount: string): Promise<void> {
+export async function createSplit(
+  creatorId: string,
+  input: {
+    title: string;
+    totalAmount: string;
+    payeeAddress: string;
+    participantCount: number;
+    inviteEmails: string[];
+    requireVerification: boolean;
+  },
+): Promise<SplitWithParticipants> {
+  const shares = computeShares(
+    amountToUnits(input.totalAmount),
+    input.participantCount,
+  );
+
+  return prisma.$transaction(async (tx) => {
+    const split = await tx.split.create({
+      data: {
+        title: input.title,
+        totalAmount: input.totalAmount,
+        payeeAddress: input.payeeAddress,
+        requireVerification: input.requireVerification,
+        participantCount: input.participantCount,
+        participants: {
+          create: {
+            userId: creatorId,
+            shareAmount: shares[0]!.toString(),
+          },
+        },
+        invites: {
+          create: input.inviteEmails.map((email, i) => ({
+            email,
+            shareAmount: shares[i + 1]!.toString(),
+          })),
+        },
+      },
+      include: splitWithParticipants.include,
+    });
+
+    return split;
+  });
+}
+
+export async function joinSplit(splitId: bigint, userId: string, email: string): Promise<void> {
   const split = await getSplitOrThrow(splitId);
 
   if (split.status === "RELEASED") {
@@ -39,27 +85,104 @@ export async function joinSplit(splitId: bigint, userId: string, shareAmount: st
     throw new ApiError("CONFLICT", "You have already joined this split");
   }
 
-  const newShare = new Prisma.Decimal(shareAmount);
-  const newShareUnits = amountToUnits(shareAmount);
-
-  const sumRow = await prisma.splitParticipant.aggregate({
-    where: { splitId },
-    _sum: { shareAmount: true },
+  const invite = await prisma.splitInvite.findUnique({
+    where: { splitId_email: { splitId, email } },
   });
-  const currentSumUnits = sumRow._sum.shareAmount
-    ? decimalToUnits(sumRow._sum.shareAmount)
-    : 0n;
-  const totalUnits = decimalToUnits(split.totalAmount);
-
-  if (currentSumUnits + newShareUnits > totalUnits) {
-    throw new ApiError(
-      "SHARE_OVERFLOW",
-      "Joining would push the total of all shares above the split amount",
-    );
+  if (!invite) {
+    throw new ApiError("FORBIDDEN", "You are not invited to this split");
+  }
+  if (invite.claimedByUserId) {
+    throw new ApiError("CONFLICT", "This invite has already been claimed");
   }
 
-  await prisma.splitParticipant.create({
-    data: { splitId, userId, shareAmount: newShare },
+  await prisma.$transaction(async (tx) => {
+    await tx.splitInvite.update({
+      where: { id: invite.id },
+      data: { claimedByUserId: userId },
+    });
+    await tx.splitParticipant.create({
+      data: {
+        splitId,
+        userId,
+        shareAmount: invite.shareAmount,
+      },
+    });
+  });
+}
+
+export async function addInvites(
+  splitId: bigint,
+  creatorId: string,
+  emails: string[],
+): Promise<SplitWithParticipants> {
+  const split = await getSplitOrThrow(splitId);
+
+  if (split.status === "RELEASED") {
+    throw new ApiError("CONFLICT", "Split is already released");
+  }
+
+  const creator = split.participants.find((p) => p.userId === creatorId);
+  if (!creator) {
+    throw new ApiError("FORBIDDEN", "Only the split creator can add people");
+  }
+
+  const nonCreatorJoined = split.participants.some(
+    (p) => p.userId !== creatorId,
+  );
+  if (nonCreatorJoined) {
+    throw new ApiError("CONFLICT", "This split is already locked");
+  }
+
+  const existingEmails = new Set([
+    ...split.invites.map((i) => i.email),
+  ]);
+  const uniqueEmails = [...new Set(emails)];
+  if (uniqueEmails.length !== emails.length) {
+    throw new ApiError("VALIDATION_ERROR", "Duplicate invite emails");
+  }
+  for (const email of uniqueEmails) {
+    if (existingEmails.has(email)) {
+      throw new ApiError("CONFLICT", `${email} is already invited`);
+    }
+  }
+
+  const newCount = split.participantCount + uniqueEmails.length;
+  const shares = computeShares(amountToUnits(split.totalAmount.toString()), newCount);
+
+  return prisma.$transaction(async (tx) => {
+    await tx.split.update({
+      where: { id: splitId },
+      data: { participantCount: newCount },
+    });
+
+    await tx.splitParticipant.update({
+      where: { id: creator.id },
+      data: { shareAmount: shares[0]!.toString() },
+    });
+
+    const existing = await tx.splitInvite.findMany({
+      where: { splitId },
+      orderBy: { createdAt: "asc" },
+    });
+    for (let i = 0; i < existing.length; i++) {
+      await tx.splitInvite.update({
+        where: { id: existing[i]!.id },
+        data: { shareAmount: shares[i + 1]!.toString() },
+      });
+    }
+
+    await tx.splitInvite.createMany({
+      data: uniqueEmails.map((email, i) => ({
+        splitId,
+        email,
+        shareAmount: shares[existing.length + 1 + i]!.toString(),
+      })),
+    });
+
+    return tx.split.findUniqueOrThrow({
+      where: { id: splitId },
+      include: splitWithParticipants.include,
+    });
   });
 }
 
