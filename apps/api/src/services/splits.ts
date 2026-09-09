@@ -71,7 +71,7 @@ export async function createSplit(
   });
 }
 
-export async function joinSplit(splitId: bigint, userId: string, email: string): Promise<void> {
+export async function joinSplit(splitId: bigint, userId: string, email: string): Promise<string> {
   const split = await getSplitOrThrow(splitId);
 
   if (split.status === "RELEASED") {
@@ -108,6 +108,8 @@ export async function joinSplit(splitId: bigint, userId: string, email: string):
       },
     });
   });
+
+  return invite.shareAmount.toFixed();
 }
 
 export async function addInvites(

@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
 import {
+  addInvitesRequestSchema,
   createSplitRequestSchema,
   createSplitResponseSchema,
   getSplitResponseSchema,
-  joinSplitRequestSchema,
   joinSplitResponseSchema,
   paySplitRequestSchema,
   paySplitResponseSchema,
@@ -14,10 +14,11 @@ import { ApiError } from "../errors.js";
 import { prisma } from "../db.js";
 import { openSplitEscrow } from "../chain/escrow.js";
 import {
+  addInvites,
+  createSplit,
   getSplitOrThrow,
   joinSplit,
   paySplit,
-  splitWithParticipants,
 } from "../services/splits.js";
 import {
   mapParticipant,
@@ -41,15 +42,15 @@ export function splitsRouter(): Router {
   router.post("/", async (req, res, next) => {
     try {
       const input = createSplitRequestSchema.parse(req.body);
+      const user = req.user!;
 
-      const split = await prisma.split.create({
-        data: {
-          title: input.title,
-          totalAmount: input.totalAmount,
-          payeeAddress: input.payeeAddress,
-          requireVerification: input.requireVerification ?? false,
-        },
-        include: splitWithParticipants.include,
+      const split = await createSplit(user.id, {
+        title: input.title,
+        totalAmount: input.totalAmount,
+        payeeAddress: input.payeeAddress,
+        participantCount: input.participantCount,
+        inviteEmails: input.invites.map((i) => i.email),
+        requireVerification: input.requireVerification ?? false,
       });
 
       try {
@@ -63,15 +64,7 @@ export function splitsRouter(): Router {
         );
       }
 
-      const body = createSplitResponseSchema.parse({
-        id: split.id.toString(),
-        title: split.title,
-        totalAmount: split.totalAmount.toString(),
-        payeeAddress: split.payeeAddress,
-        requireVerification: split.requireVerification,
-        status: "pending",
-        createdAt: split.createdAt.toISOString(),
-      });
+      const body = createSplitResponseSchema.parse(mapSplitDetail(split));
       res.status(201).json(body);
     } catch (err) {
       next(err);
@@ -88,18 +81,37 @@ export function splitsRouter(): Router {
     }
   });
 
+  router.post("/:id/invites", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      const input = parseBody(addInvitesRequestSchema, req.body);
+      const user = req.user!;
+
+      const split = await addInvites(id, user.id, input.emails);
+      res.json(getSplitResponseSchema.parse(mapSplitDetail(split)));
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.post("/:id/join", async (req, res, next) => {
     try {
       const id = parseId(req.params.id);
-      const input = parseBody(joinSplitRequestSchema, req.body);
       const user = req.user!;
 
-      await joinSplit(id, user.id, input.shareAmount);
+      if (!user.email) {
+        throw new ApiError(
+          "FORBIDDEN",
+          "No email on your account, so we cannot match an invite",
+        );
+      }
+
+      const shareAmount = await joinSplit(id, user.id, user.email);
 
       const body = joinSplitResponseSchema.parse({
         splitId: id.toString(),
         userId: user.id,
-        shareAmount: input.shareAmount,
+        shareAmount,
       });
       res.status(201).json(body);
     } catch (err) {
