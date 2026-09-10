@@ -19,19 +19,28 @@ import { prisma } from "../db.js";
 const db = prisma as unknown as FakePrisma;
 const app = createApp();
 
+function createBody(wallet: string) {
+  return {
+    title: "X",
+    totalAmount: "10",
+    payeeAddress: wallet,
+    participantCount: 2,
+    invites: [{ email: "friend@example.com" }],
+  };
+}
+
 describe("auth: dev mode header path", () => {
   beforeEach(() => {
     db.user.clear();
     db.split.clear();
     db.splitParticipant.clear();
+    db.splitInvite.clear();
   });
 
   it("rejects requests without an x-dev-user-id header", async () => {
-    const res = await request(app).post("/api/v1/splits").send({
-      title: "X",
-      totalAmount: "10",
-      payeeAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    });
+    const res = await request(app)
+      .post("/api/v1/splits")
+      .send(createBody("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
     expect(res.status).toBe(401);
     expect(res.body.error.code).toBe("UNAUTHORIZED");
   });
@@ -42,7 +51,7 @@ describe("auth: dev mode header path", () => {
       .post("/api/v1/splits")
       .set("x-dev-user-id", "carol")
       .set("x-dev-wallet", wallet)
-      .send({ title: "X", totalAmount: "10", payeeAddress: wallet });
+      .send(createBody(wallet));
 
     expect(res.status).toBe(201);
     const users = db.user.rows;
@@ -57,11 +66,11 @@ describe("auth: dev mode header path", () => {
     await request(app)
       .post("/api/v1/splits")
       .set(headers)
-      .send({ title: "A", totalAmount: "10", payeeAddress: wallet });
+      .send(createBody(wallet));
     const res = await request(app)
       .post("/api/v1/splits")
       .set(headers)
-      .send({ title: "B", totalAmount: "20", payeeAddress: wallet });
+      .send({ ...createBody(wallet), title: "B" });
 
     expect(res.status).toBe(201);
     expect(db.user.rows).toHaveLength(1);

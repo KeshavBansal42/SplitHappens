@@ -28,6 +28,7 @@ describe("GET /api/v1/splits/:id/status", () => {
     db.user.clear();
     db.split.clear();
     db.splitParticipant.clear();
+    db.splitInvite.clear();
     setEscrowStatus({ collected: 0n, target: 0n, released: false });
   });
 
@@ -39,12 +40,14 @@ describe("GET /api/v1/splits/:id/status", () => {
         totalAmount: decimal("120.00"),
         payeeAddress: WALLET,
         requireVerification: false,
+        participantCount: 2,
         status: "PENDING",
         releaseTxHash: null,
         releasedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
         participants: [],
+        invites: [],
       } as unknown as Row,
     ]);
 
@@ -56,6 +59,7 @@ describe("GET /api/v1/splits/:id/status", () => {
     expect(res.body.split).toMatchObject({ id: "1", status: "pending" });
     expect(res.body.onChain).toEqual({ collected: "0", target: "0", released: false });
     expect(res.body.participants).toEqual([]);
+    expect(res.body.invites).toEqual([]);
   });
 
   it("merges on-chain escrow state when the chain read succeeds", async () => {
@@ -68,12 +72,14 @@ describe("GET /api/v1/splits/:id/status", () => {
         totalAmount: decimal("120.00"),
         payeeAddress: WALLET,
         requireVerification: false,
+        participantCount: 2,
         status: "PARTIALLY_PAID",
         releaseTxHash: null,
         releasedAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
         participants: [],
+        invites: [],
       } as unknown as Row,
     ]);
 

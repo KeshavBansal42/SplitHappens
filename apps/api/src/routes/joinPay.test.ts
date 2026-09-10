@@ -19,12 +19,14 @@ const BOB_WALLET = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const TX_HASH = "0x" + "ab".repeat(32);
 const decimal = (v: string) => new Prisma.Decimal(v);
 const BOB_USER_ID = "u_bob";
+const BOB_EMAIL = "bob@example.com";
 
 function seedBobUser() {
   db.user.seed([
     {
       id: BOB_USER_ID,
       privyUserId: "dev:bob",
+      email: BOB_EMAIL,
       walletAddress: BOB_WALLET,
       verifiedHuman: false,
       createdAt: new Date(),
@@ -41,14 +43,30 @@ function seedSplit(totalAmount: string, status = "PENDING") {
       totalAmount: decimal(totalAmount),
       payeeAddress: WALLET,
       requireVerification: false,
+      participantCount: 2,
       status,
       releaseTxHash: null,
       releasedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       participants: [],
+      invites: [],
     } as unknown as Row,
   ]);
+}
+
+function seedInvite(overrides: Partial<Row> = {}) {
+  const invite = {
+    id: "inv_1",
+    splitId: 1n,
+    email: BOB_EMAIL,
+    shareAmount: decimal("30.00"),
+    claimedByUserId: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+  db.splitInvite.seed([invite as unknown as Row]);
 }
 
 function seedParticipant(overrides: Partial<Row> = {}) {
@@ -73,79 +91,83 @@ function seedParticipant(overrides: Partial<Row> = {}) {
   db.splitParticipant.seed([participant as unknown as Row]);
 }
 
-const BOB = { "x-dev-user-id": "bob", "x-dev-wallet": BOB_WALLET };
-const CAROL = { "x-dev-user-id": "carol", "x-dev-wallet": WALLET };
+const BOB = {
+  "x-dev-user-id": "bob",
+  "x-dev-wallet": BOB_WALLET,
+  "x-dev-email": BOB_EMAIL,
+};
+const CAROL = {
+  "x-dev-user-id": "carol",
+  "x-dev-wallet": WALLET,
+  "x-dev-email": "carol@example.com",
+};
 
 describe("POST /api/v1/splits/:id/join", () => {
   beforeEach(() => {
     db.user.clear();
     db.split.clear();
     db.splitParticipant.clear();
+    db.splitInvite.clear();
   });
 
-  it("adds the caller as a participant", async () => {
+  it("claims the caller's invite and adds them as a participant", async () => {
     seedBobUser();
     seedSplit("120.00");
+    seedInvite();
 
     const res = await request(app)
       .post("/api/v1/splits/1/join")
       .set(BOB)
-      .send({ shareAmount: "30.00" });
+      .send({});
 
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({
       splitId: "1",
       userId: BOB_USER_ID,
-      shareAmount: "30.00",
+      shareAmount: "30",
     });
     expect(db.splitParticipant.rows).toHaveLength(1);
+    expect(db.splitInvite.rows[0]?.claimedByUserId).toBe(BOB_USER_ID);
+  });
+
+  it("rejects someone without a matching invite with 403", async () => {
+    seedBobUser();
+    seedSplit("120.00");
+    seedInvite();
+
+    const res = await request(app)
+      .post("/api/v1/splits/1/join")
+      .set(CAROL)
+      .send({});
+
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe("FORBIDDEN");
   });
 
   it("rejects a duplicate join with 409", async () => {
     seedBobUser();
     seedSplit("120.00");
+    seedInvite({ claimedByUserId: BOB_USER_ID });
     seedParticipant();
 
     const res = await request(app)
       .post("/api/v1/splits/1/join")
       .set(BOB)
-      .send({ shareAmount: "30.00" });
+      .send({});
 
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe("CONFLICT");
   });
 
-  it("rejects when shares exceed the total with 422", async () => {
-    seedBobUser();
-    seedSplit("50.00");
-    seedParticipant({
-      userId: "u_carol",
-      user: {
-        id: "u_carol",
-        privyUserId: "dev:carol",
-        walletAddress: WALLET,
-        verifiedHuman: false,
-      },
-      shareAmount: decimal("40.00"),
-    });
-
-    const res = await request(app)
-      .post("/api/v1/splits/1/join")
-      .set(BOB)
-      .send({ shareAmount: "20.00" });
-
-    expect(res.status).toBe(422);
-    expect(res.body.error.code).toBe("SHARE_OVERFLOW");
-  });
-
   it("rejects joining a released split with 409", async () => {
     seedBobUser();
     seedSplit("120.00", "RELEASED");
+    seedInvite();
 
     const res = await request(app)
       .post("/api/v1/splits/1/join")
       .set(BOB)
-      .send({ shareAmount: "30.00" });
+      .send({});
 
     expect(res.status).toBe(409);
   });
@@ -156,6 +178,7 @@ describe("POST /api/v1/splits/:id/pay", () => {
     db.user.clear();
     db.split.clear();
     db.splitParticipant.clear();
+    db.splitInvite.clear();
   });
 
   it("records the tx intent for a matching share", async () => {

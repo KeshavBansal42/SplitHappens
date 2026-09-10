@@ -6,8 +6,10 @@ export type Row = { id: string | bigint } & Record<string, unknown>;
 type Delegate = {
   rows: Row[];
   findUnique: ReturnType<typeof vi.fn>;
+  findUniqueOrThrow: ReturnType<typeof vi.fn>;
   findMany: ReturnType<typeof vi.fn>;
   create: ReturnType<typeof vi.fn>;
+  createMany: ReturnType<typeof vi.fn>;
   update: ReturnType<typeof vi.fn>;
   upsert: ReturnType<typeof vi.fn>;
   aggregate: ReturnType<typeof vi.fn>;
@@ -38,6 +40,13 @@ function makeDelegate(): Delegate {
           r.splitId === compound.splitId && r.userId === compound.userId,
       );
     }
+    const inviteCompound = where.splitId_email as { splitId?: bigint; email?: string } | undefined;
+    if (inviteCompound) {
+      return holder.current.find(
+        (r) =>
+          r.splitId === inviteCompound.splitId && r.email === inviteCompound.email,
+      );
+    }
     return undefined;
   };
 
@@ -61,6 +70,11 @@ function makeDelegate(): Delegate {
     findUnique: vi.fn(async ({ where }: { where: Record<string, unknown> }) =>
       matchWhere(where) ?? null,
     ),
+    findUniqueOrThrow: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+      const row = matchWhere(where);
+      if (!row) throw new Error("findUniqueOrThrow: row not found");
+      return row;
+    }),
     findMany: vi.fn(async ({ where }: { where?: Record<string, unknown> } = {}) => {
       if (where?.status && typeof where.status === "object") {
         const notVal = (where.status as { not?: string }).not;
@@ -81,8 +95,44 @@ function makeDelegate(): Delegate {
     }),
     create: vi.fn(async ({ data }: { data: Row }) => {
       ensureId(data);
+      const nestedParticipant = (data as { participants?: { create?: Row | Row[] } }).participants;
+      const nestedInvites = (data as { invites?: { create?: Row | Row[] } }).invites;
+      if (nestedParticipant?.create) {
+        const rows = Array.isArray(nestedParticipant.create)
+          ? nestedParticipant.create
+          : [nestedParticipant.create];
+        (data as Row).participants = rows.map((r) => {
+          const row = {
+            ...r,
+            splitId: data.id,
+            user: { walletAddress: null },
+            paid: r.paid ?? false,
+            txHash: r.txHash ?? null,
+            confirmedAt: r.confirmedAt ?? null,
+          };
+          ensureId(row);
+          return row;
+        });
+      }
+      if (nestedInvites?.create) {
+        const rows = Array.isArray(nestedInvites.create)
+          ? nestedInvites.create
+          : [nestedInvites.create];
+        (data as Row).invites = rows.map((r) => {
+          const row = { ...r, splitId: data.id, claimedByUserId: r.claimedByUserId ?? null };
+          ensureId(row);
+          return row;
+        });
+      }
       holder.current.push(data);
       return data;
+    }),
+    createMany: vi.fn(async ({ data }: { data: Row[] }) => {
+      for (const item of data) {
+        ensureId(item);
+        holder.current.push(item);
+      }
+      return { count: data.length };
     }),
     update: vi.fn(async ({ where, data }: { where: { id: string | bigint }; data: Partial<Row> }) => {
       const row = byId(where);
@@ -143,8 +193,10 @@ function makeDelegate(): Delegate {
       holder.current = [];
       delegate.rows = holder.current;
       delegate.findUnique.mockClear();
+      delegate.findUniqueOrThrow.mockClear();
       delegate.findMany.mockClear();
       delegate.create.mockClear();
+      delegate.createMany.mockClear();
       delegate.update.mockClear();
       delegate.delete.mockClear();
       delegate.upsert.mockClear();
@@ -160,6 +212,7 @@ export function createFakePrisma() {
     user: makeDelegate(),
     split: makeDelegate(),
     splitParticipant: makeDelegate(),
+    splitInvite: makeDelegate(),
     $transaction: vi.fn(),
   };
   db.$transaction.mockImplementation(async (fn: (tx: typeof db) => Promise<unknown>) =>

@@ -5,7 +5,7 @@ import {
   amountToUnits,
   decimalToUnits,
 } from "../chain/units.js";
-import { computeShares } from "./shares.js";
+import { sharesAsAmounts } from "./shares.js";
 
 export const splitWithParticipants = Prisma.validator<Prisma.SplitDefaultArgs>()({
   include: {
@@ -38,10 +38,7 @@ export async function createSplit(
     requireVerification: boolean;
   },
 ): Promise<SplitWithParticipants> {
-  const shares = computeShares(
-    amountToUnits(input.totalAmount),
-    input.participantCount,
-  );
+  const shares = sharesAsAmounts(input.totalAmount, input.participantCount);
 
   return prisma.$transaction(async (tx) => {
     const split = await tx.split.create({
@@ -54,13 +51,13 @@ export async function createSplit(
         participants: {
           create: {
             userId: creatorId,
-            shareAmount: shares[0]!.toString(),
+            shareAmount: shares[0]!,
           },
         },
         invites: {
           create: input.inviteEmails.map((email, i) => ({
             email,
-            shareAmount: shares[i + 1]!.toString(),
+            shareAmount: shares[i + 1]!,
           })),
         },
       },
@@ -149,7 +146,7 @@ export async function addInvites(
   }
 
   const newCount = split.participantCount + uniqueEmails.length;
-  const shares = computeShares(amountToUnits(split.totalAmount.toString()), newCount);
+  const shares = sharesAsAmounts(split.totalAmount.toString(), newCount);
 
   return prisma.$transaction(async (tx) => {
     await tx.split.update({
@@ -159,7 +156,7 @@ export async function addInvites(
 
     await tx.splitParticipant.update({
       where: { id: creator.id },
-      data: { shareAmount: shares[0]!.toString() },
+      data: { shareAmount: shares[0]! },
     });
 
     const existing = await tx.splitInvite.findMany({
@@ -169,7 +166,7 @@ export async function addInvites(
     for (let i = 0; i < existing.length; i++) {
       await tx.splitInvite.update({
         where: { id: existing[i]!.id },
-        data: { shareAmount: shares[i + 1]!.toString() },
+        data: { shareAmount: shares[i + 1]! },
       });
     }
 
@@ -177,7 +174,7 @@ export async function addInvites(
       data: uniqueEmails.map((email, i) => ({
         splitId,
         email,
-        shareAmount: shares[existing.length + 1 + i]!.toString(),
+        shareAmount: shares[existing.length + 1 + i]!,
       })),
     });
 

@@ -4,7 +4,7 @@ import { splitStatusResponseSchema } from "@splithappens/shared";
 import { requireAuth } from "../auth/privy.js";
 import { ApiError } from "../errors.js";
 import { getSplitOrThrow } from "../services/splits.js";
-import { mapParticipant, mapSplitStatus } from "../services/serialize.js";
+import { mapInvite, mapParticipant, mapSplitStatus } from "../services/serialize.js";
 import { decimalToUnits, unitsToAmount } from "../chain/units.js";
 import { getEscrowStatus } from "../chain/reader.js";
 
@@ -42,6 +42,7 @@ export function statusRouter(): Router {
           totalAmount: unitsToAmount(totalUnits),
           payeeAddress: split.payeeAddress,
           requireVerification: split.requireVerification,
+          participantCount: split.participantCount,
         },
         onChain: {
           collected: unitsToAmount(onChain.collected),
@@ -49,6 +50,7 @@ export function statusRouter(): Router {
           released: onChain.released,
         },
         participants: split.participants.map(mapParticipant),
+        invites: split.invites.map(mapInvite),
       });
       res.json(body);
     } catch (err) {
