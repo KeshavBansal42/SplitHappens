@@ -87,7 +87,9 @@ export const escrowAbi = [
 
 ## openSplit handshake
 
-The backend calls `openSplit(splitId, payeeAddress, targetAmount)` from its
-releaser wallet whenever a split is created (`apps/api/src/chain/escrow.ts`),
-so every DB split has a registered on-chain escrow before any deposit is
-accepted. If that call fails the split row is rolled back.
+`openSplit(splitId, payeeAddress, targetAmount)` is signed by the **split
+creator's own wallet**, so the gas comes out of their USDC. The backend
+creates the database row first, then verifies the submitted transaction
+(receipt success, escrow target, decoded arguments matching the row) before
+marking the split open. Join/deposit are refused until it's open, and an
+abandoned unopened row is cleaned up after 24h.

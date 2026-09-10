@@ -15,14 +15,14 @@ Built for [ETHGlobal Online 2026](https://ethglobal.com/) across the Privy
    phrase is ever shown.
 2. **Create a split** — name it, set the total, pick the payee wallet and
    how many people are splitting (including you). Everyone pays an equal
-   share, and the backend registers the split on-chain (`openSplit`) so a
-   real escrow exists before anyone pays.
-3. **Share the link** — invite friends by email; each person claims their
-   seat with an equal share.
+   share. Your own wallet signs `openSplit`, so a real escrow exists before
+   anyone pays — gas comes from your USDC, and the backend holds no keys.
+3. **Invite people** — each friend is matched by the email on their account,
+   so the split shows up for them without needing a link.
 4. **Pay your share** — one click approves the escrow and deposits your
    USDC on Arc testnet.
-5. **Auto-release** — the contract holds the funds until the target is met,
-   then anyone can trigger `release()` and the full balance goes to the
+5. **Release** — the contract holds the funds until the target is met, then
+   a participant triggers `release()` and the full balance goes to the
    payee. No one holds the money in between; the escrow is the source of
    truth.
 
@@ -71,6 +71,7 @@ endpoint, ready for a World Sandbox Selfie Check gate in the client.
 ┌──────────────────────────────────────────┐
 │               Frontend (apps/web)         │
 │  - Privy login + wallet                  │
+│  - Signs openSplit / deposit / release   │
 │  - Create split / join / Pay my share    │
 │  - Status dashboard (polls /status)      │
 └────────────────────┬─────────────────────┘
@@ -79,11 +80,11 @@ endpoint, ready for a World Sandbox Selfie Check gate in the client.
 ┌──────────────────────────────────────────┐
 │            Backend (apps/api)             │
 │  - Split CRUD + pay intent endpoints      │
-│  - Registers splits on-chain (openSplit)  │
+│  - Verifies open tx from its receipt      │
 │  - Confirms deposits from tx receipts     │
-│  - Auto-releases when fully funded        │
+│  - Mirrors on-chain release into the db   │
 └────────────────────┬─────────────────────┘
-                     │  viem calls / calldata
+                     │  viem reads / calldata
                      ▼
             ┌────────────────────┐
             │  SplitEscrow (Arc)  │
