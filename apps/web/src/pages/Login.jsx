@@ -1,12 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { animate, stagger, createTimeline } from 'animejs';
+import { stagger, createTimeline } from 'animejs';
 import { useAuth } from '../lib/auth.jsx';
 
 export default function Login() {
   const navigate = useNavigate();
   const cardRef = useRef(null);
-  const { login } = useAuth();
+  const { login, authenticated } = useAuth();
+
+  useEffect(() => {
+    if (authenticated) navigate('/', { replace: true });
+  }, [authenticated, navigate]);
 
   useEffect(() => {
     const tl = createTimeline({ easing: 'easeOutExpo' });
@@ -43,13 +47,6 @@ export default function Login() {
 
   const handleLogin = () => {
     login();
-    animate('.login-card', {
-      scale: [1, 0.98],
-      opacity: [1, 0.7],
-      duration: 200,
-      ease: 'inQuad',
-      onComplete: () => navigate('/'),
-    });
   };
 
   return (

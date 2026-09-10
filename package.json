@@ -14,6 +14,7 @@
     "db:up": "docker compose up -d",
     "db:migrate": "pnpm --filter @splithappens/api db:migrate",
     "dev:api": "pnpm --filter @splithappens/api dev",
+    "dev:web": "pnpm --filter @splithappens/web dev",
     "docker:up": "docker compose up --build -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",

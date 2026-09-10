@@ -60,6 +60,7 @@ services:
         VITE_ESCROW_ADDRESS: ${ESCROW_ADDRESS:-0xf77bbF1907150F2a633A0748A14Fb3Bb29f7f961}
         VITE_DEV_USER_ID: ${VITE_DEV_USER_ID:-}
         VITE_DEV_WALLET: ${VITE_DEV_WALLET:-}
+        VITE_DEV_EMAIL: ${VITE_DEV_EMAIL:-}
     image: splithappens-web
     container_name: splithappens-web
     restart: unless-stopped

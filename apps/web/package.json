@@ -1,7 +1,7 @@
 {
-  "name": "splithappens-web",
+  "name": "@splithappens/web",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,10 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@privy-io/react-auth": "^1.99.1",
     "animejs": "^4.5.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-router-dom": "^7.18.3"
+    "react-router-dom": "^7.18.3",
+    "viem": "^2.21.0"
   },
   "devDependencies": {
     "@types/react": "^19.2.18",

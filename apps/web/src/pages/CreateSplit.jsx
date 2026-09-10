@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { animate, stagger } from 'animejs';
+import { encodeFunctionData } from 'viem';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
+import { CHAIN_ID, amountToUnits, escrowAbi } from '../lib/chain.js';
+import { ESCROW_ADDRESS } from '../lib/env.js';
+
+const DEV_TX_HASH = '0x' + '00'.repeat(32);
 
 export default function CreateSplit() {
   const navigate = useNavigate();
   const pageRef = useRef(null);
-  const { user } = useAuth();
+  const { user, isDev, sendTransaction } = useAuth();
   const [title, setTitle] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
   const [payeeAddress, setPayeeAddress] = useState(user?.wallet || '');
@@ -41,6 +46,29 @@ export default function CreateSplit() {
     setInvites(updated);
   };
 
+  const openOnChain = async (split) => {
+    if (isDev) {
+      await api.openSplit(split.id, { txHash: DEV_TX_HASH });
+      return;
+    }
+
+    const data = encodeFunctionData({
+      abi: escrowAbi,
+      functionName: 'openSplit',
+      args: [
+        BigInt(split.id),
+        split.payeeAddress,
+        amountToUnits(split.totalAmount),
+      ],
+    });
+    const receipt = await sendTransaction({
+      to: ESCROW_ADDRESS,
+      data,
+      chainId: CHAIN_ID,
+    });
+    await api.openSplit(split.id, { txHash: receipt.transactionHash });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -58,13 +86,16 @@ export default function CreateSplit() {
       };
 
       const result = await api.createSplit(body);
-      animate('.form-card', {
-        scale: [1, 0.98],
-        opacity: [1, 0.5],
-        duration: 300,
-        ease: 'inQuad',
-        onComplete: () => navigate(`/splits/${result.id}`),
-      });
+
+      // Signing controls the creator's own wallet, so it can be cancelled.
+      // The split page offers a retry if that happens.
+      try {
+        await openOnChain(result);
+      } catch (txErr) {
+        console.warn('openSplit not completed:', txErr.message);
+      }
+
+      navigate(`/splits/${result.id}`);
     } catch (err) {
       setError(err.message);
       setSubmitting(false);

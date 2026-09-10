@@ -13,53 +13,79 @@ export function adaptParticipant(p, currentUser) {
   const wallet = currentUser?.wallet?.toLowerCase() || '';
   return {
     id: p.id,
+    userId: p.userId,
     name,
     avatar: deriveAvatar(name),
     address: p.walletAddress || 'Not connected',
+    walletAddress: p.walletAddress,
     shareAmount: parseFloat(p.shareAmount),
+    shareAmountRaw: p.shareAmount,
     paid: p.paid,
     txHash: p.txHash,
-    isCurrentUser: p.walletAddress?.toLowerCase() === wallet,
+    isCurrentUser: Boolean(wallet) && p.walletAddress?.toLowerCase() === wallet,
   };
 }
 
-export function adaptSplit(split, currentUser) {
-  const participants = split.participants.map((p) =>
+export function adaptSummary(s) {
+  return {
+    id: s.id,
+    title: s.title,
+    totalAmount: parseFloat(s.totalAmount),
+    collectedAmount: parseFloat(s.paidAmount || '0'),
+    paidCount: s.paidCount || 0,
+    payeeAddress: s.payeeAddress,
+    status: s.status,
+    participantCount: s.participantCount,
+    opened: s.opened,
+    createdAt: (s.createdAt || '').split('T')[0],
+    myShareAmount:
+      s.myShareAmount === null || s.myShareAmount === undefined
+        ? null
+        : parseFloat(s.myShareAmount),
+  };
+}
+
+export function adaptSplitList(splits) {
+  return splits.map(adaptSummary);
+}
+
+export function adaptStatus(status, currentUser) {
+  const split = status.split;
+  const participants = (status.participants || []).map((p) =>
     adaptParticipant(p, currentUser)
   );
-  const collectedAmount = participants
-    .filter((p) => p.paid)
-    .reduce((sum, p) => sum + p.shareAmount, 0);
+  const collected = parseFloat(status.onChain?.collected || '0');
+  const target = parseFloat(status.onChain?.target || split.totalAmount);
 
   return {
     id: split.id,
     title: split.title,
     totalAmount: parseFloat(split.totalAmount),
-    collectedAmount,
+    totalAmountRaw: split.totalAmount,
+    collectedAmount: collected,
+    targetAmount: target,
+    onChainReleased: Boolean(status.onChain?.released),
+    fullyFunded: target > 0 && collected >= target,
     payeeAddress: split.payeeAddress,
-    payeeName: deriveName(null, split.participants[0]?.userId),
     status: split.status,
     requireVerification: split.requireVerification,
-    createdAt: split.createdAt?.split('T')[0] || '',
+    participantCount: split.participantCount,
+    creatorId: split.creatorId,
+    opened: split.opened,
     participants,
-    invites: split.invites || [],
+    invites: status.invites || [],
+    me: participants.find((p) => p.isCurrentUser) || null,
   };
 }
 
-export function adaptSplitList(splits, currentUser) {
-  return splits.map((s) => adaptSplit(s, currentUser));
-}
-
-export function computeStats(splits, currentUser) {
+export function computeStats(splits) {
   const totalSplits = splits.length;
-  const activeSplits = splits.filter(
-    (s) => s.status === 'partially_paid' || s.status === 'pending'
-  ).length;
-  const totalUSDC = splits.reduce((sum, s) => sum + s.totalAmount, 0);
-  const myShare = splits.reduce((sum, s) => {
-    const me = s.participants.find((p) => p.isCurrentUser);
-    return sum + (me ? me.shareAmount : 0);
-  }, 0);
+  const activeSplits = splits.filter((s) => s.status !== 'released').length;
+  const totalUSDC = splits.reduce((sum, s) => sum + (s.totalAmount || 0), 0);
+  const myShare = splits.reduce(
+    (sum, s) => sum + (s.myShareAmount || 0),
+    0
+  );
 
   return { totalSplits, activeSplits, totalUSDC, myShare };
 }

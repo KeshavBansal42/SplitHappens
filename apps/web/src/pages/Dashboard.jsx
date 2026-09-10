@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { animate, stagger, createTimeline } from 'animejs';
 import { api } from '../lib/api.js';
-import { useAuth } from '../lib/auth.jsx';
 import { adaptSplitList, computeStats } from '../lib/transform.js';
 
 const statusLabels = {
@@ -19,8 +18,8 @@ const statusClass = {
 
 export default function Dashboard() {
   const pageRef = useRef(null);
-  const { user } = useAuth();
   const [splits, setSplits] = useState([]);
+  const [invited, setInvited] = useState([]);
   const [stats, setStats] = useState({ totalSplits: 0, activeSplits: 0, totalUSDC: 0, myShare: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,10 +27,14 @@ export default function Dashboard() {
   useEffect(() => {
     async function load() {
       try {
-        const data = await api.listSplits();
-        const adapted = adaptSplitList(data, user);
+        const [mine, invites] = await Promise.all([
+          api.getMySplits(),
+          api.getInvitedSplits(),
+        ]);
+        const adapted = adaptSplitList(mine.splits);
         setSplits(adapted);
-        setStats(computeStats(adapted, user));
+        setStats(computeStats(adapted));
+        setInvited(adaptSplitList(invites.splits));
       } catch (err) {
         setError(err.message);
       } finally {
@@ -39,7 +42,7 @@ export default function Dashboard() {
       }
     }
     load();
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     if (loading) return;
@@ -97,6 +100,42 @@ export default function Dashboard() {
         <StatCard label="My Share" value={`$${stats.myShare.toFixed(2)}`} />
       </div>
 
+      {invited.length > 0 && (
+        <section style={{ marginBottom: 'var(--sp-8)' }}>
+          <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 'var(--sp-4)' }}>
+            Invited to
+          </h2>
+          <div className="split-list">
+            {invited.map((split) => (
+              <Link
+                key={split.id}
+                to={`/splits/${split.id}`}
+                className="split-row"
+                style={{ textDecoration: 'none' }}
+              >
+                <div className="split-info">
+                  <div className="split-title">{split.title}</div>
+                  <div className="split-meta">
+                    {split.opened ? `${split.participantCount} participants` : 'Setup incomplete'}
+                  </div>
+                </div>
+                <div className="split-amount">${split.totalAmount.toLocaleString()}</div>
+                <div className="split-progress-cell">
+                  <div className="split-progress-label">
+                    Your share ${split.myShareAmount?.toFixed(2) ?? '0.00'}
+                  </div>
+                </div>
+                <span className={`badge ${statusClass[split.status]}`}>
+                  <span className="badge-dot" />
+                  {statusLabels[split.status]}
+                </span>
+                <span className="split-date">{split.createdAt}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--sp-4)' }}>
         <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 600, color: 'var(--text-primary)' }}>
           Recent Splits
@@ -128,14 +167,20 @@ export default function Dashboard() {
             >
               <div className="split-info">
                 <div className="split-title">{split.title}</div>
-                <div className="split-meta">{split.participants.length} participants</div>
+                <div className="split-meta">
+                  {split.opened
+                    ? `${split.participantCount} participants`
+                    : 'Setup incomplete'}
+                </div>
               </div>
               <div className="split-amount">${split.totalAmount.toLocaleString()}</div>
               <div className="split-progress-cell">
                 <div className="progress-bar" style={{ width: '100%' }}>
                   <div
                     className="progress-fill"
-                    style={{ width: `${split.totalAmount > 0 ? (split.collectedAmount / split.totalAmount) * 100 : 0}%` }}
+                    style={{
+                      width: `${split.totalAmount > 0 ? (split.collectedAmount / split.totalAmount) * 100 : 0}%`,
+                    }}
                   />
                 </div>
                 <div className="split-progress-label">
