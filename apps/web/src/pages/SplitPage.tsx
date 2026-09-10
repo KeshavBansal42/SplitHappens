@@ -22,6 +22,18 @@ const STATUS_CLASS: Record<string, string> = {
   released: "badge-released",
 };
 
+const SAVED_KEY = "splithappens.my-splits";
+
+function didICreate(id: string): boolean {
+  try {
+    const raw = localStorage.getItem(SAVED_KEY);
+    const list = raw ? (JSON.parse(raw) as { id: string }[]) : [];
+    return list.some((s) => s.id === id);
+  } catch {
+    return false;
+  }
+}
+
 export function SplitPage() {
   const { id } = useParams<{ id: string }>();
   const { api } = useApi();
@@ -33,11 +45,13 @@ export function SplitPage() {
   const [status, setStatus] = useState<SplitStatusResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [myUserId, setMyUserIdState] = useState<string | null>(getMyUserId);
-  const [shareAmount, setShareAmount] = useState("");
   const [joinBusy, setJoinBusy] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
   const [pollMs, setPollMs] = useState(5000);
   const [paymentReport, setPaymentReport] = useState<string | null>(null);
+  const [inviteEmails, setInviteEmails] = useState([""]);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!api || !id) return;
@@ -61,12 +75,14 @@ export function SplitPage() {
 
   if (!id) return null;
 
+  const isCreator = didICreate(id);
+
   const join = async () => {
     if (!api) return;
     setJoinBusy(true);
     setJoinError(null);
     try {
-      const res = await api.joinSplit(id, { shareAmount });
+      const res = await api.joinSplit(id);
       setMyUserId(res.userId);
       setMyUserIdState(res.userId);
       await load();
@@ -74,6 +90,22 @@ export function SplitPage() {
       setJoinError((err as ApiClientError).message ?? "Failed to join.");
     } finally {
       setJoinBusy(false);
+    }
+  };
+
+  const addPeople = async () => {
+    if (!api) return;
+    setInviteBusy(true);
+    setInviteError(null);
+    try {
+      const emails = inviteEmails.map((e) => e.trim()).filter(Boolean);
+      await api.addInvites(id, { emails });
+      setInviteEmails([""]);
+      await load();
+    } catch (err) {
+      setInviteError((err as ApiClientError).message ?? "Failed to add people.");
+    } finally {
+      setInviteBusy(false);
     }
   };
 
@@ -124,6 +156,10 @@ export function SplitPage() {
   );
   const balance = balanceState.status === "ok" ? balanceState.amount : null;
   const badge = STATUS_CLASS[split.status] ?? "badge-pending";
+  const pendingInvites = status.invites.filter((i) => !i.claimed);
+  const hasOtherParticipants = status.participants.some(
+    (p) => myUserId && p.userId !== myUserId,
+  );
 
   return (
     <>
@@ -201,7 +237,7 @@ export function SplitPage() {
               <div className="detail-info-item">
                 <span className="detail-info-label">Participants</span>
                 <span className="detail-info-value">
-                  {status.participants.length}
+                  {status.participants.length} / {split.participantCount}
                 </span>
               </div>
               <div className="detail-info-item">
@@ -255,6 +291,26 @@ export function SplitPage() {
                 );
               })}
             </div>
+
+            {pendingInvites.length > 0 && (
+              <div style={{ marginTop: "var(--sp-4)" }}>
+                <h3 style={{ fontSize: "var(--text-sm)", marginBottom: "var(--sp-2)" }}>
+                  Invited
+                </h3>
+                {pendingInvites.map((inv) => (
+                  <div key={inv.id} className="participant-row">
+                    <div className="participant-avatar">@</div>
+                    <div className="participant-info">
+                      <div className="participant-name">{inv.email}</div>
+                      <div className="participant-address">
+                        {inv.shareAmount} USDC share
+                      </div>
+                    </div>
+                    <div className="participant-amount">Invited</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {myParticipant ? (
@@ -293,26 +349,62 @@ export function SplitPage() {
             <div className="card">
               <h3 style={{ marginBottom: "var(--sp-2)" }}>Join this split</h3>
               <p style={{ marginBottom: "var(--sp-4)" }}>
-                Add your share to start paying toward the total.
+                You have been invited to pay an equal share.
               </p>
-              <div className="form-group">
-                <label className="form-label">Your share (USDC)</label>
-                <input
-                  className="form-input"
-                  value={shareAmount}
-                  onChange={(e) => setShareAmount(e.target.value)}
-                  placeholder="40.00"
-                  inputMode="decimal"
-                />
-              </div>
               <button
                 className="btn btn-primary"
                 onClick={() => void join()}
-                disabled={joinBusy || !shareAmount}
+                disabled={joinBusy}
               >
                 {joinBusy ? "Joining…" : "Join"}
               </button>
               {joinError && <p className="error">{joinError}</p>}
+            </div>
+          )}
+
+          {isCreator && split.status !== "released" && !hasOtherParticipants && (
+            <div className="card">
+              <h3 style={{ marginBottom: "var(--sp-2)" }}>Add people</h3>
+              <p style={{ marginBottom: "var(--sp-4)" }}>
+                Invite more people before anyone joins — shares stay equal.
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "var(--sp-3)",
+                  marginBottom: "var(--sp-4)",
+                }}
+              >
+                {inviteEmails.map((email, i) => (
+                  <input
+                    key={i}
+                    className="form-input"
+                    type="email"
+                    value={email}
+                    onChange={(e) =>
+                      setInviteEmails((prev) =>
+                        prev.map((v, j) => (j === i ? e.target.value : v)),
+                      )
+                    }
+                    placeholder={`friend${i + 1}@example.com`}
+                  />
+                ))}
+              </div>
+              <button
+                className="btn btn-ghost"
+                onClick={() => setInviteEmails((prev) => [...prev, ""])}
+              >
+                + Another email
+              </button>{" "}
+              <button
+                className="btn btn-primary"
+                onClick={() => void addPeople()}
+                disabled={inviteBusy || inviteEmails.every((e) => !e.trim())}
+              >
+                {inviteBusy ? "Adding…" : "Add people"}
+              </button>
+              {inviteError && <p className="error">{inviteError}</p>}
             </div>
           )}
         </div>
