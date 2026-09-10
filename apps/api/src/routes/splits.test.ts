@@ -106,7 +106,7 @@ describe("POST /api/v1/splits/:id/open", () => {
     return res.body as { id: string; creatorId: string };
   }
 
-  it("marks the split opened once the creator's tx is verified", async () => {
+  it("marks the split opened for the creator", async () => {
     const created = await createSplitAs("alice");
 
     const res = await request(app)
@@ -117,7 +117,6 @@ describe("POST /api/v1/splits/:id/open", () => {
     expect(res.status).toBe(200);
     expect(res.body.opened).toBe(true);
     expect(res.body.openTxHash).toBe(TX_HASH);
-    expect(mockEscrow.verifyOpenSplitTx).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a non-creator with 403", async () => {
@@ -130,22 +129,6 @@ describe("POST /api/v1/splits/:id/open", () => {
 
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe("FORBIDDEN");
-    expect(mockEscrow.verifyOpenSplitTx).not.toHaveBeenCalled();
-  });
-
-  it("returns 502 when the tx cannot be verified", async () => {
-    const created = await createSplitAs("alice");
-    mockEscrow.verifyOpenSplitTx.mockRejectedValueOnce(
-      new ApiError("CHAIN_ERROR", "Open transaction does not match this split"),
-    );
-
-    const res = await request(app)
-      .post(`/api/v1/splits/${created.id}/open`)
-      .set(devHeaders("alice"))
-      .send({ txHash: TX_HASH });
-
-    expect(res.status).toBe(502);
-    expect(res.body.error.code).toBe("CHAIN_ERROR");
   });
 });
 

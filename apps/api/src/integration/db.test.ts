@@ -238,7 +238,7 @@ describe("discovery", () => {
     expect(invited[0]!.split.id).toBe(split.id);
 
     const mine = await listMine(creator.id);
-    expect(mine.map((s) => s.id)).toContain(split.id);
+    expect(mine.map(({ split: s }) => s.id)).toContain(split.id);
 
     const bobMineBefore = await listMine(bob.id);
     expect(bobMineBefore).toHaveLength(0);

@@ -25,7 +25,6 @@ import {
   paySplit,
 } from "../services/splits.js";
 import {
-  mapInvite,
   mapParticipant,
   mapSplitDetail,
   mapSplitSummary,
@@ -76,10 +75,9 @@ export function splitsRouter(): Router {
       const invites = await listInvited(user.email);
       const body = invitedSplitsResponseSchema.parse({
         viewerId: user.id,
-        splits: invites.map((invite) => ({
-          ...mapSplitSummary(invite.split),
-          myShareAmount: mapInvite(invite).shareAmount,
-        })),
+        splits: invites.map((invite) =>
+          mapSplitSummary(invite.split, invite.shareAmount),
+        ),
       });
       res.json(body);
     } catch (err) {
@@ -93,7 +91,9 @@ export function splitsRouter(): Router {
       const splits = await listMine(user.id);
       const body = mySplitsResponseSchema.parse({
         viewerId: user.id,
-        splits: splits.map(mapSplitSummary),
+        splits: splits.map(({ split, shareAmount }) =>
+          mapSplitSummary(split, shareAmount),
+        ),
       });
       res.json(body);
     } catch (err) {

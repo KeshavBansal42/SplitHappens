@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { ApiError } from "../errors.js";
 import { prisma } from "../db.js";
+import { getConfig } from "../config.js";
 import {
   amountToUnits,
   decimalToUnits,
@@ -80,12 +81,15 @@ export async function markSplitOpened(
     return split;
   }
 
-  await verifyOpenSplitTx(splitId, {
-    txHash,
-    payeeAddress: split.payeeAddress,
-    targetAmount: split.totalAmount.toString(),
-    from: null,
-  });
+  // Dev mode has no wallet to sign with, so the chain check is skipped there.
+  if (getConfig().AUTH_MODE !== "dev") {
+    await verifyOpenSplitTx(splitId, {
+      txHash,
+      payeeAddress: split.payeeAddress,
+      targetAmount: split.totalAmount.toString(),
+      from: null,
+    });
+  }
 
   await prisma.split.update({
     where: { id: splitId },
@@ -98,7 +102,7 @@ export async function markSplitOpened(
 export async function listInvited(email: string) {
   return prisma.splitInvite.findMany({
     where: { email, claimedByUserId: null },
-    include: { split: true },
+    include: { split: { include: { participants: true } } },
     orderBy: { createdAt: "desc" },
   });
 }
@@ -106,10 +110,10 @@ export async function listInvited(email: string) {
 export async function listMine(userId: string) {
   const rows = await prisma.splitParticipant.findMany({
     where: { userId },
-    include: { split: true },
+    include: { split: { include: { participants: true } } },
     orderBy: { createdAt: "desc" },
   });
-  return rows.map((row) => row.split);
+  return rows.map((row) => ({ split: row.split, shareAmount: row.shareAmount }));
 }
 
 export async function joinSplit(splitId: bigint, userId: string, email: string): Promise<string> {

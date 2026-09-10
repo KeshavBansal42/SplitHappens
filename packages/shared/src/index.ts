@@ -122,6 +122,9 @@ export const splitSummarySchema = z.object({
   status: splitStatusSchema,
   participantCount: z.number().int(),
   opened: z.boolean(),
+  paidAmount: z.string(),
+  paidCount: z.number().int(),
+  myShareAmount: z.string().nullable(),
   createdAt: dateTimeSchema,
 });
 
@@ -129,9 +132,7 @@ export type SplitSummary = z.infer<typeof splitSummarySchema>;
 
 export const invitedSplitsResponseSchema = z.object({
   viewerId: z.string(),
-  splits: z.array(
-    splitSummarySchema.extend({ myShareAmount: z.string() }),
-  ),
+  splits: z.array(splitSummarySchema),
 });
 
 export type InvitedSplitsResponse = z.infer<typeof invitedSplitsResponseSchema>;
