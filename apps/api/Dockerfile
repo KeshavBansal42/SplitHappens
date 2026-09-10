@@ -7,9 +7,9 @@ WORKDIR /app
 
 FROM base AS build
 COPY . .
-RUN pnpm install --frozen-lockfile --filter "@splitstream/api..."
-RUN pnpm --filter @splitstream/api exec prisma generate
-RUN pnpm --filter "@splitstream/api..." build
+RUN pnpm install --frozen-lockfile --filter "@splithappens/api..."
+RUN pnpm --filter @splithappens/api exec prisma generate
+RUN pnpm --filter "@splithappens/api..." build
 
 FROM base AS runtime
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
@@ -17,4 +17,4 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/shared ./packages/shared
 COPY --from=build /app/apps/api ./apps/api
 EXPOSE 4000
-CMD ["sh", "-c", "pnpm --filter @splitstream/api db:migrate && pnpm --filter @splitstream/api start"]
+CMD ["sh", "-c", "apps/api/node_modules/.bin/prisma migrate deploy --schema apps/api/prisma/schema.prisma && node apps/api/dist/index.js"]
