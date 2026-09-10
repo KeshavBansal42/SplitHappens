@@ -80,6 +80,9 @@ export const createSplitResponseSchema = z.object({
   payeeAddress: z.string(),
   requireVerification: z.boolean(),
   participantCount: z.number().int(),
+  creatorId: z.string(),
+  opened: z.boolean(),
+  openTxHash: z.string().nullable(),
   status: splitStatusSchema,
   createdAt: dateTimeSchema,
   participants: z.array(participantSchema),
@@ -95,6 +98,9 @@ export const splitDetailSchema = z.object({
   payeeAddress: z.string(),
   requireVerification: z.boolean(),
   participantCount: z.number().int(),
+  creatorId: z.string(),
+  opened: z.boolean(),
+  openTxHash: z.string().nullable(),
   status: splitStatusSchema,
   releaseTxHash: z.string().nullable(),
   releasedAt: dateTimeSchema.nullable(),
@@ -107,6 +113,41 @@ export type SplitDetail = z.infer<typeof splitDetailSchema>;
 
 export const getSplitResponseSchema = splitDetailSchema;
 export type GetSplitResponse = SplitDetail;
+
+export const splitSummarySchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  totalAmount: z.string(),
+  payeeAddress: z.string(),
+  status: splitStatusSchema,
+  participantCount: z.number().int(),
+  opened: z.boolean(),
+  createdAt: dateTimeSchema,
+});
+
+export type SplitSummary = z.infer<typeof splitSummarySchema>;
+
+export const invitedSplitsResponseSchema = z.object({
+  viewerId: z.string(),
+  splits: z.array(
+    splitSummarySchema.extend({ myShareAmount: z.string() }),
+  ),
+});
+
+export type InvitedSplitsResponse = z.infer<typeof invitedSplitsResponseSchema>;
+
+export const mySplitsResponseSchema = z.object({
+  viewerId: z.string(),
+  splits: z.array(splitSummarySchema),
+});
+
+export type MySplitsResponse = z.infer<typeof mySplitsResponseSchema>;
+
+export const openSplitRequestSchema = z.object({
+  txHash: txHashSchema,
+});
+
+export type OpenSplitRequest = z.infer<typeof openSplitRequestSchema>;
 
 export const joinSplitRequestSchema = z.object({});
 
@@ -145,6 +186,9 @@ export const splitStatusResponseSchema = z.object({
     payeeAddress: z.string(),
     requireVerification: z.boolean(),
     participantCount: z.number().int(),
+    creatorId: z.string(),
+    opened: z.boolean(),
+    openTxHash: z.string().nullable(),
   }),
   onChain: z.object({
     collected: z.string(),
