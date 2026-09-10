@@ -13,10 +13,12 @@ Built for [ETHGlobal Online 2026](https://ethglobal.com/) across the Privy
 
 1. **Log in with email** — Privy creates an embedded wallet for you. No seed
    phrase is ever shown.
-2. **Create a split** — name it, set the total, pick the payee wallet. The
-   backend registers the split on-chain (`openSplit`) from a server wallet,
-   so every split has a real escrow behind it before anyone pays.
-3. **Share the link** — friends join and declare their share.
+2. **Create a split** — name it, set the total, pick the payee wallet and
+   how many people are splitting (including you). Everyone pays an equal
+   share, and the backend registers the split on-chain (`openSplit`) so a
+   real escrow exists before anyone pays.
+3. **Share the link** — invite friends by email; each person claims their
+   seat with an equal share.
 4. **Pay your share** — one click approves the escrow and deposits your
    USDC on Arc testnet.
 5. **Auto-release** — the contract holds the funds until the target is met,
