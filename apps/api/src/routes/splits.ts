@@ -6,12 +6,14 @@ import {
   createSplitResponseSchema,
   getSplitResponseSchema,
   joinSplitResponseSchema,
+  listSplitsResponseSchema,
   paySplitRequestSchema,
   paySplitResponseSchema,
 } from "@splithappens/shared";
 import { requireAuth } from "../auth/privy.js";
 import { ApiError } from "../errors.js";
 import { prisma } from "../db.js";
+import { getConfig } from "../config.js";
 import { openSplitEscrow } from "../chain/escrow.js";
 import {
   addInvites,
@@ -39,6 +41,27 @@ export function splitsRouter(): Router {
 
   router.use(requireAuth);
 
+  router.get("/", async (req, res, next) => {
+    try {
+      const user = req.user!;
+      const participations = await prisma.splitParticipant.findMany({
+        where: { userId: user.id },
+        include: {
+          split: {
+            include: {
+              participants: { include: { user: true } },
+              invites: true,
+            },
+          },
+        },
+      });
+      const splits = participations.map((p) => mapSplitDetail(p.split));
+      res.json(listSplitsResponseSchema.parse(splits));
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.post("/", async (req, res, next) => {
     try {
       const input = createSplitRequestSchema.parse(req.body);
@@ -53,15 +76,18 @@ export function splitsRouter(): Router {
         requireVerification: input.requireVerification ?? false,
       });
 
-      try {
-        await openSplitEscrow(split.id, input.payeeAddress, input.totalAmount);
-      } catch (err) {
-        await prisma.split.delete({ where: { id: split.id } });
-        if (err instanceof ApiError) throw err;
-        throw new ApiError(
-          "CHAIN_ERROR",
-          "Failed to open the split on-chain",
-        );
+      const config = getConfig();
+      if (config.AUTH_MODE !== "dev") {
+        try {
+          await openSplitEscrow(split.id, input.payeeAddress, input.totalAmount);
+        } catch (err) {
+          await prisma.split.delete({ where: { id: split.id } });
+          if (err instanceof ApiError) throw err;
+          throw new ApiError(
+            "CHAIN_ERROR",
+            "Failed to open the split on-chain",
+          );
+        }
       }
 
       const body = createSplitResponseSchema.parse(mapSplitDetail(split));

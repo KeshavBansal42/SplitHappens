@@ -108,6 +108,9 @@ export type SplitDetail = z.infer<typeof splitDetailSchema>;
 export const getSplitResponseSchema = splitDetailSchema;
 export type GetSplitResponse = SplitDetail;
 
+export const listSplitsResponseSchema = z.array(splitDetailSchema);
+export type ListSplitsResponse = z.infer<typeof listSplitsResponseSchema>;
+
 export const joinSplitRequestSchema = z.object({});
 
 export type JoinSplitRequest = z.infer<typeof joinSplitRequestSchema>;
