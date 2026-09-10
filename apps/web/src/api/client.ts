@@ -1,8 +1,8 @@
 import type {
+  AddInvitesRequest,
   CreateSplitRequest,
   CreateSplitResponse,
   GetSplitResponse,
-  JoinSplitRequest,
   JoinSplitResponse,
   PaySplitRequest,
   Participant,
@@ -78,8 +78,11 @@ export function createApiClient(auth: ApiAuth) {
     getSplit(id: string) {
       return request<GetSplitResponse>("GET", `/splits/${id}`);
     },
-    joinSplit(id: string, input: JoinSplitRequest) {
-      return request<JoinSplitResponse>("POST", `/splits/${id}/join`, input);
+    joinSplit(id: string) {
+      return request<JoinSplitResponse>("POST", `/splits/${id}/join`, {});
+    },
+    addInvites(id: string, input: AddInvitesRequest) {
+      return request<GetSplitResponse>("POST", `/splits/${id}/invites`, input);
     },
     paySplit(id: string, input: PaySplitRequest) {
       return request<Participant>("POST", `/splits/${id}/pay`, input);

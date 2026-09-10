@@ -29,18 +29,49 @@ export function HomePage() {
   const [title, setTitle] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
   const [payeeAddress, setPayeeAddress] = useState("");
+  const [people, setPeopleCount] = useState(2);
+  const [emails, setEmails] = useState<string[]>([""]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const inviteCount = people - 1;
+  const filledEmails = emails.slice(0, inviteCount);
+  const equalShare =
+    totalAmount && people > 0
+      ? (Number(totalAmount) / people).toFixed(2)
+      : null;
+
+  const setEmail = (index: number, value: string) => {
+    setEmails((prev) => prev.map((e, i) => (i === index ? value : e)));
+  };
+
+  const setPeople = (value: number) => {
+    const count = Math.max(2, value);
+    setPeopleCount(count);
+    setEmails((prev) => {
+      const target = count - 1;
+      if (prev.length < target) {
+        return [...prev, ...Array(target - prev.length).fill("")];
+      }
+      return prev.slice(0, target);
+    });
+  };
 
   const createSplit = async () => {
     if (!api) return;
     setBusy(true);
     setError(null);
     try {
+      const invites = filledEmails
+        .map((e) => e.trim())
+        .filter(Boolean)
+        .map((email) => ({ email }));
       const split = await api.createSplit({
         title: title.trim(),
         totalAmount,
         payeeAddress,
+        participantCount: people,
+        invites,
       });
       saveSplit({
         id: split.id,
@@ -107,6 +138,47 @@ export function HomePage() {
               />
             </div>
           </div>
+
+          <div className="form-group">
+            <label className="form-label">Number of people (including you)</label>
+            <input
+              className="form-input"
+              type="number"
+              min={2}
+              value={people}
+              onChange={(e) => setPeople(Number(e.target.value))}
+            />
+          </div>
+
+          {equalShare && (
+            <p style={{ marginBottom: "var(--sp-4)" }}>
+              Each person pays {equalShare} USDC
+            </p>
+          )}
+
+          {inviteCount > 0 && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "var(--sp-3)",
+                marginBottom: "var(--sp-4)",
+              }}
+            >
+              <label className="form-label">Invite by email</label>
+              {Array.from({ length: inviteCount }).map((_, i) => (
+                <input
+                  key={i}
+                  className="form-input"
+                  type="email"
+                  value={emails[i] ?? ""}
+                  onChange={(e) => setEmail(i, e.target.value)}
+                  placeholder={`friend${i + 1}@example.com`}
+                />
+              ))}
+            </div>
+          )}
+
           {error && <p className="error">{error}</p>}
           <button
             type="submit"
