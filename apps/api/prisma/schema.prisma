@@ -23,6 +23,7 @@ model User {
   updatedAt      DateTime @updatedAt
   participants   SplitParticipant[]
   claimedInvites SplitInvite[] @relation("claimed")
+  createdSplits  Split[] @relation("created")
 
   @@map("users")
 }
@@ -35,13 +36,18 @@ model Split {
   requireVerification Boolean  @default(false)
   participantCount    Int      @default(1)
   status              SplitStatus @default(PENDING)
+  creatorId           String?
+  openedAt            DateTime?
+  openTxHash          String?
   releaseTxHash       String?
   releasedAt          DateTime?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+  creator             User?    @relation("created", fields: [creatorId], references: [id])
   participants        SplitParticipant[]
   invites             SplitInvite[]
 
+  @@index([creatorId])
   @@map("splits")
 }
 
