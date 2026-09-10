@@ -4,6 +4,26 @@ import { escrowAbi } from "./escrowAbi";
 import { usdcAbi } from "./usdcAbi";
 import { amountToUnits } from "./units";
 
+describe("escrow openSplit encoding", () => {
+  it("encodes openSplit(splitId, payee, target) that decodes back", () => {
+    const splitId = 1000n;
+    const payee = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    const target = amountToUnits("120.00");
+
+    const data = encodeFunctionData({
+      abi: escrowAbi,
+      functionName: "openSplit",
+      args: [splitId, payee, target],
+    });
+
+    const decoded = decodeFunctionData({ abi: escrowAbi, data });
+    expect(decoded.functionName).toBe("openSplit");
+    expect(decoded.args[0]).toEqual(splitId);
+    expect((decoded.args[1] as string).toLowerCase()).toBe(payee);
+    expect(decoded.args[2]).toEqual(target);
+  });
+});
+
 describe("escrow deposit encoding", () => {
   it("encodes deposit(splitId, amount) that decodes back", () => {
     const splitId = 7n;

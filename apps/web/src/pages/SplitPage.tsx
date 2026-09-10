@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { usePrivy } from "@privy-io/react-auth";
+import { encodeFunctionData } from "viem";
 import { useApi } from "../api/ApiProvider";
 import { getMyUserId, setMyUserId } from "../api/me";
 import { useEmbeddedWallet } from "../privy/useEmbeddedWallet";
 import { useUsdcBalance } from "../privy/useUsdcBalance";
 import { PayMyShare } from "../components/PayMyShare";
 import { shortAddress } from "../lib/format";
+import { escrowAbi } from "../lib/escrowAbi";
+import { amountToUnits } from "../lib/units";
 import { ESCROW_ADDRESS } from "../lib/env";
 import type { ApiClientError } from "../api/client";
 import type { SplitStatusResponse } from "@splithappens/shared";
@@ -22,21 +26,10 @@ const STATUS_CLASS: Record<string, string> = {
   released: "badge-released",
 };
 
-const SAVED_KEY = "splithappens.my-splits";
-
-function didICreate(id: string): boolean {
-  try {
-    const raw = localStorage.getItem(SAVED_KEY);
-    const list = raw ? (JSON.parse(raw) as { id: string }[]) : [];
-    return list.some((s) => s.id === id);
-  } catch {
-    return false;
-  }
-}
-
 export function SplitPage() {
   const { id } = useParams<{ id: string }>();
   const { api } = useApi();
+  const { sendTransaction } = usePrivy();
   const { authenticated, address } = useEmbeddedWallet();
   const { state: balanceState } = useUsdcBalance(
     authenticated ? address : null,
@@ -52,6 +45,10 @@ export function SplitPage() {
   const [inviteEmails, setInviteEmails] = useState([""]);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const [setupBusy, setSetupBusy] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
+  const [releaseBusy, setReleaseBusy] = useState(false);
+  const [releaseError, setReleaseError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!api || !id) return;
@@ -75,7 +72,66 @@ export function SplitPage() {
 
   if (!id) return null;
 
-  const isCreator = didICreate(id);
+  const finishSetup = async () => {
+    if (!api || !status) return;
+    setSetupBusy(true);
+    setSetupError(null);
+    try {
+      if (!ESCROW_ADDRESS) throw new Error("Escrow address is not configured.");
+      const { split } = status;
+      const data = encodeFunctionData({
+        abi: escrowAbi,
+        functionName: "openSplit",
+        args: [
+          BigInt(split.id),
+          split.payeeAddress as `0x${string}`,
+          amountToUnits(split.totalAmount),
+        ],
+      });
+      const receipt = await sendTransaction({
+        to: ESCROW_ADDRESS,
+        data,
+        chainId: 5042002,
+      });
+      await api.openSplit(split.id, {
+        txHash: receipt.transactionHash as `0x${string}`,
+      });
+      await load();
+    } catch (err) {
+      setSetupError(
+        (err as ApiClientError).message ?? "Could not finish setting up.",
+      );
+    } finally {
+      setSetupBusy(false);
+    }
+  };
+
+  const releaseFunds = async () => {
+    if (!api || !status) return;
+    setReleaseBusy(true);
+    setReleaseError(null);
+    try {
+      if (!ESCROW_ADDRESS) throw new Error("Escrow address is not configured.");
+      const data = encodeFunctionData({
+        abi: escrowAbi,
+        functionName: "release",
+        args: [BigInt(status.split.id)],
+      });
+      await sendTransaction({
+        to: ESCROW_ADDRESS,
+        data,
+        chainId: 5042002,
+      });
+      setPollMs(3000);
+      await load();
+    } catch (err) {
+      setReleaseError(
+        (err as ApiClientError).message ?? "Could not release the funds.",
+      );
+    } finally {
+      setReleaseBusy(false);
+    }
+  };
 
   const join = async () => {
     if (!api) return;
@@ -160,6 +216,9 @@ export function SplitPage() {
   const hasOtherParticipants = status.participants.some(
     (p) => myUserId && p.userId !== myUserId,
   );
+  const isCreator = Boolean(myUserId && split.creatorId === myUserId);
+  const fullyFunded = target > 0 && collected >= target;
+  const canRelease = split.opened && !status.onChain.released && fullyFunded;
 
   return (
     <>
@@ -313,7 +372,32 @@ export function SplitPage() {
             )}
           </div>
 
-          {myParticipant ? (
+          {!split.opened && isCreator && (
+            <div className="card">
+              <h3 style={{ marginBottom: "var(--sp-2)" }}>Finish setting up</h3>
+              <p style={{ marginBottom: "var(--sp-4)" }}>
+                This split still needs its escrow opened on-chain. It's the
+                only place gas comes from your wallet.
+              </p>
+              <button
+                className="btn btn-primary"
+                onClick={() => void finishSetup()}
+                disabled={setupBusy}
+              >
+                {setupBusy ? "Opening…" : "Open on-chain"}
+              </button>
+              {setupError && <p className="error">{setupError}</p>}
+            </div>
+          )}
+
+          {!split.opened && !isCreator && (
+            <div className="card">
+              <h3 style={{ marginBottom: "var(--sp-2)" }}>Not open yet</h3>
+              <p>The creator hasn't finished setting this split up.</p>
+            </div>
+          )}
+
+          {split.opened && myParticipant && (
             <div className="card">
               <h3 style={{ marginBottom: "var(--sp-2)" }}>Pay your share</h3>
               <p className="pay-cta-amount">
@@ -343,26 +427,52 @@ export function SplitPage() {
                 </>
               )}
             </div>
-          ) : split.status === "released" ? (
+          )}
+
+          {split.opened &&
+            !myParticipant &&
+            split.status !== "released" && (
+              <div className="card">
+                <h3 style={{ marginBottom: "var(--sp-2)" }}>Join this split</h3>
+                <p style={{ marginBottom: "var(--sp-4)" }}>
+                  You have been invited to pay an equal share.
+                </p>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => void join()}
+                  disabled={joinBusy}
+                >
+                  {joinBusy ? "Joining…" : "Join"}
+                </button>
+                {joinError && <p className="error">{joinError}</p>}
+              </div>
+            )}
+
+          {split.opened && !myParticipant && split.status === "released" && (
             <p>This split is released.</p>
-          ) : (
+          )}
+
+          {canRelease && (
             <div className="card">
-              <h3 style={{ marginBottom: "var(--sp-2)" }}>Join this split</h3>
+              <h3 style={{ marginBottom: "var(--sp-2)" }}>Fully funded</h3>
               <p style={{ marginBottom: "var(--sp-4)" }}>
-                You have been invited to pay an equal share.
+                Everyone has paid. Release the USDC to the payee.
               </p>
               <button
                 className="btn btn-primary"
-                onClick={() => void join()}
-                disabled={joinBusy}
+                onClick={() => void releaseFunds()}
+                disabled={releaseBusy}
               >
-                {joinBusy ? "Joining…" : "Join"}
+                {releaseBusy ? "Releasing…" : "Release funds"}
               </button>
-              {joinError && <p className="error">{joinError}</p>}
+              {releaseError && <p className="error">{releaseError}</p>}
             </div>
           )}
 
-          {isCreator && split.status !== "released" && !hasOtherParticipants && (
+          {isCreator &&
+            split.opened &&
+            split.status !== "released" &&
+            !hasOtherParticipants && (
             <div className="card">
               <h3 style={{ marginBottom: "var(--sp-2)" }}>Add people</h3>
               <p style={{ marginBottom: "var(--sp-4)" }}>

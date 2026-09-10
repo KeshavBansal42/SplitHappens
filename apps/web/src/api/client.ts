@@ -3,14 +3,21 @@ import type {
   CreateSplitRequest,
   CreateSplitResponse,
   GetSplitResponse,
+  InvitedSplitsResponse,
   JoinSplitResponse,
+  MySplitsResponse,
+  OpenSplitRequest,
   PaySplitRequest,
   Participant,
   SplitStatusResponse,
 } from "@splithappens/shared";
 
 export type ApiAuth =
-  | { mode: "privy"; getAccessToken: () => Promise<string | null> }
+  | {
+      mode: "privy";
+      getAccessToken: () => Promise<string | null>;
+      getIdentityToken?: () => string | null;
+    }
   | { mode: "dev"; userId: string; wallet: string };
 
 export type ApiErrorBody = {
@@ -34,7 +41,12 @@ export function createApiClient(auth: ApiAuth) {
     const base = { "content-type": "application/json" };
     if (auth.mode === "privy") {
       const token = await auth.getAccessToken();
-      return { ...base, authorization: token ? `Bearer ${token}` : "" };
+      const identity = auth.getIdentityToken?.() ?? null;
+      return {
+        ...base,
+        authorization: token ? `Bearer ${token}` : "",
+        ...(identity ? { "x-privy-id-token": identity } : {}),
+      };
     }
     return {
       ...base,
@@ -75,8 +87,17 @@ export function createApiClient(auth: ApiAuth) {
     createSplit(input: CreateSplitRequest) {
       return request<CreateSplitResponse>("POST", "/splits", input);
     },
+    openSplit(id: string, input: OpenSplitRequest) {
+      return request<GetSplitResponse>("POST", `/splits/${id}/open`, input);
+    },
     getSplit(id: string) {
       return request<GetSplitResponse>("GET", `/splits/${id}`);
+    },
+    getInvitedSplits() {
+      return request<InvitedSplitsResponse>("GET", "/splits/invited");
+    },
+    getMySplits() {
+      return request<MySplitsResponse>("GET", "/splits/mine");
     },
     joinSplit(id: string) {
       return request<JoinSplitResponse>("POST", `/splits/${id}/join`, {});

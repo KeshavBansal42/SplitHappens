@@ -1,29 +1,19 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { usePrivy } from "@privy-io/react-auth";
+import { encodeFunctionData } from "viem";
 import { useApi } from "../api/ApiProvider";
+import { setMyUserId } from "../api/me";
 import { WalletCard } from "../components/WalletCard";
+import { escrowAbi } from "../lib/escrowAbi";
+import { amountToUnits } from "../lib/units";
+import { ESCROW_ADDRESS } from "../lib/env";
 import type { ApiClientError } from "../api/client";
-
-type SavedSplit = { id: string; title: string; totalAmount: string };
-
-const STORAGE_KEY = "splithappens.my-splits";
-
-function loadSplits(): SavedSplit[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as SavedSplit[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveSplit(split: SavedSplit) {
-  const list = loadSplits().filter((s) => s.id !== split.id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([split, ...list]));
-}
+import type { InvitedSplitsResponse, MySplitsResponse } from "@splithappens/shared";
 
 export function HomePage() {
   const { api } = useApi();
+  const { sendTransaction } = usePrivy();
   const navigate = useNavigate();
 
   const [title, setTitle] = useState("");
@@ -33,6 +23,26 @@ export function HomePage() {
   const [emails, setEmails] = useState<string[]>([""]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mine, setMine] = useState<MySplitsResponse["splits"]>([]);
+  const [invited, setInvited] = useState<InvitedSplitsResponse["splits"]>([]);
+
+  const loadLists = useCallback(async () => {
+    if (!api) return;
+    try {
+      const [my, invites] = await Promise.all([
+        api.getMySplits(),
+        api.getInvitedSplits(),
+      ]);
+      setMine(my.splits);
+      setInvited(invites.splits);
+    } catch {
+      // the dashboard lists are best-effort; creation still works
+    }
+  }, [api]);
+
+  useEffect(() => {
+    void loadLists();
+  }, [loadLists]);
 
   const inviteCount = people - 1;
   const filledEmails = emails.slice(0, inviteCount);
@@ -57,6 +67,31 @@ export function HomePage() {
     });
   };
 
+  const openOnChain = async (split: {
+    id: string;
+    payeeAddress: string;
+    totalAmount: string;
+  }) => {
+    if (!ESCROW_ADDRESS) return;
+    const data = encodeFunctionData({
+      abi: escrowAbi,
+      functionName: "openSplit",
+      args: [
+        BigInt(split.id),
+        split.payeeAddress as `0x${string}`,
+        amountToUnits(split.totalAmount),
+      ],
+    });
+    const receipt = await sendTransaction({
+      to: ESCROW_ADDRESS,
+      data,
+      chainId: 5042002,
+    });
+    await api!.openSplit(split.id, {
+      txHash: receipt.transactionHash as `0x${string}`,
+    });
+  };
+
   const createSplit = async () => {
     if (!api) return;
     setBusy(true);
@@ -73,11 +108,13 @@ export function HomePage() {
         participantCount: people,
         invites,
       });
-      saveSplit({
-        id: split.id,
-        title: split.title,
-        totalAmount: split.totalAmount,
-      });
+      setMyUserId(split.creatorId);
+
+      try {
+        await openOnChain(split);
+      } catch {
+        // Signing can be rejected or fail — the split page can finish it.
+      }
       navigate(`/splits/${split.id}`);
     } catch (err) {
       setError((err as ApiClientError).message ?? "Failed to create split.");
@@ -85,8 +122,6 @@ export function HomePage() {
       setBusy(false);
     }
   };
-
-  const mySplits = loadSplits();
 
   return (
     <>
@@ -190,14 +225,32 @@ export function HomePage() {
         </form>
       </section>
 
-      {mySplits.length > 0 && (
+      {invited.length > 0 && (
         <section className="card" style={{ marginTop: "var(--sp-6)" }}>
-          <h2 style={{ marginBottom: "var(--sp-4)" }}>Your splits</h2>
+          <h2 style={{ marginBottom: "var(--sp-4)" }}>Invited to</h2>
           <div className="split-list">
-            {mySplits.map((s) => (
+            {invited.map((s) => (
               <Link key={s.id} to={`/splits/${s.id}`} className="split-row">
                 <div className="split-info">
                   <div className="split-title">{s.title}</div>
+                  <div className="split-sub">Your share {s.myShareAmount} USDC</div>
+                </div>
+                <div className="split-amount">{s.totalAmount} USDC</div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {mine.length > 0 && (
+        <section className="card" style={{ marginTop: "var(--sp-6)" }}>
+          <h2 style={{ marginBottom: "var(--sp-4)" }}>Your splits</h2>
+          <div className="split-list">
+            {mine.map((s) => (
+              <Link key={s.id} to={`/splits/${s.id}`} className="split-row">
+                <div className="split-info">
+                  <div className="split-title">{s.title}</div>
+                  {!s.opened && <div className="split-sub">Setup incomplete</div>}
                 </div>
                 <div className="split-amount">{s.totalAmount} USDC</div>
               </Link>

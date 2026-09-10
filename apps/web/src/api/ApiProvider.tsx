@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useIdentityToken, usePrivy } from "@privy-io/react-auth";
 import { createApiClient, type ApiClient } from "./client";
 
 type ApiContextValue = {
@@ -19,6 +19,7 @@ const DEV_WALLET = import.meta.env.VITE_DEV_WALLET as string | undefined;
 
 export function ApiProvider({ children }: { children: ReactNode }) {
   const { ready, authenticated, getAccessToken, user } = usePrivy();
+  const { identityToken } = useIdentityToken();
   const { linkedAccounts, wallet } = user ?? {};
 
   const value = useMemo<ApiContextValue>(() => {
@@ -53,11 +54,12 @@ export function ApiProvider({ children }: { children: ReactNode }) {
       api: createApiClient({
         mode: "privy",
         getAccessToken: () => getAccessToken(),
+        getIdentityToken: () => identityToken,
       }),
       ready,
       authenticated,
     };
-  }, [ready, authenticated, getAccessToken, wallet, linkedAccounts]);
+  }, [ready, authenticated, getAccessToken, identityToken, wallet, linkedAccounts]);
 
   return <ApiContext.Provider value={value}>{children}</ApiContext.Provider>;
 }
