@@ -1,17 +1,25 @@
-import { describe, expect, it, beforeAll, afterEach } from "vitest";
+import { describe, expect, it, beforeAll, afterEach, vi } from "vitest";
 import { prisma } from "../db.js";
 import {
   addInvites,
   createSplit,
   getSplitOrThrow,
   joinSplit,
+  listInvited,
+  listMine,
+  markSplitOpened,
   paySplit,
 } from "../services/splits.js";
 import { sharesAsAmounts } from "../services/shares.js";
 
+vi.mock("../chain/escrow.js", () => ({
+  verifyOpenSplitTx: vi.fn(async () => undefined),
+}));
+
 const WALLET = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const BOB_WALLET = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const TX_HASH = "0x" + "ab".repeat(32);
+const OPEN_TX = "0x" + "ef".repeat(32);
 
 async function createUser(
   privyUserId: string,
@@ -55,7 +63,7 @@ describe("share math", () => {
 });
 
 describe("equal-share split lifecycle", () => {
-  it("creates a split with creator seat and equal invites", async () => {
+  it("creates a split with creator seat, equal invites, and no open tx yet", async () => {
     const creator = await createUser("dev:alice", "alice@example.com", WALLET);
 
     const split = await createSplit(creator.id, {
@@ -67,14 +75,32 @@ describe("equal-share split lifecycle", () => {
       requireVerification: false,
     });
 
+    expect(split.creatorId).toBe(creator.id);
+    expect(split.openedAt).toBeNull();
     expect(split.participantCount).toBe(3);
     expect(split.participants).toHaveLength(1);
-    expect(split.participants[0]!.userId).toBe(creator.id);
     expect(split.invites).toHaveLength(2);
     expect(split.invites.map((i) => i.shareAmount.toString())).toEqual(["40", "40"]);
   });
 
-  it("lets an invited user claim their seat by email", async () => {
+  it("marks a split opened when the open tx is verified", async () => {
+    const creator = await createUser("dev:alice", "alice@example.com", WALLET);
+
+    const split = await createSplit(creator.id, {
+      title: "Trip",
+      totalAmount: "120.00",
+      payeeAddress: WALLET,
+      participantCount: 2,
+      inviteEmails: ["bob@example.com"],
+      requireVerification: false,
+    });
+
+    const opened = await markSplitOpened(split.id, OPEN_TX);
+    expect(opened.openedAt).toBeInstanceOf(Date);
+    expect(opened.openTxHash).toBe(OPEN_TX);
+  });
+
+  it("blocks joining while the split is not open", async () => {
     const creator = await createUser("dev:alice", "alice@example.com", WALLET);
     const bob = await createUser("dev:bob", "bob@example.com", BOB_WALLET);
 
@@ -86,6 +112,25 @@ describe("equal-share split lifecycle", () => {
       inviteEmails: ["bob@example.com"],
       requireVerification: false,
     });
+
+    await expect(joinSplit(split.id, bob.id, "bob@example.com")).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+  });
+
+  it("lets an invited user claim their seat by email once open", async () => {
+    const creator = await createUser("dev:alice", "alice@example.com", WALLET);
+    const bob = await createUser("dev:bob", "bob@example.com", BOB_WALLET);
+
+    const split = await createSplit(creator.id, {
+      title: "Trip",
+      totalAmount: "120.00",
+      payeeAddress: WALLET,
+      participantCount: 2,
+      inviteEmails: ["bob@example.com"],
+      requireVerification: false,
+    });
+    await markSplitOpened(split.id, OPEN_TX);
 
     const share = await joinSplit(split.id, bob.id, "bob@example.com");
     expect(share).toBe("60");
@@ -107,6 +152,7 @@ describe("equal-share split lifecycle", () => {
       inviteEmails: ["bob@example.com"],
       requireVerification: false,
     });
+    await markSplitOpened(split.id, OPEN_TX);
 
     await expect(joinSplit(split.id, dave.id, "dave@example.com")).rejects.toMatchObject({
       code: "FORBIDDEN",
@@ -144,8 +190,27 @@ describe("equal-share split lifecycle", () => {
       inviteEmails: ["bob@example.com"],
       requireVerification: false,
     });
-
+    await markSplitOpened(split.id, OPEN_TX);
     await joinSplit(split.id, bob.id, "bob@example.com");
+
+    await expect(addInvites(split.id, creator.id, ["carol@example.com"])).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+  });
+
+  it("locks adding invites once the creator has a pending deposit", async () => {
+    const creator = await createUser("dev:alice", "alice@example.com", WALLET);
+
+    const split = await createSplit(creator.id, {
+      title: "Trip",
+      totalAmount: "120.00",
+      payeeAddress: WALLET,
+      participantCount: 2,
+      inviteEmails: ["bob@example.com"],
+      requireVerification: false,
+    });
+    await markSplitOpened(split.id, OPEN_TX);
+    await paySplit(split.id, creator.id, TX_HASH, "60");
 
     await expect(addInvites(split.id, creator.id, ["carol@example.com"])).rejects.toMatchObject({
       code: "CONFLICT",
@@ -153,8 +218,8 @@ describe("equal-share split lifecycle", () => {
   });
 });
 
-describe("pay flow against real db", () => {
-  it("paySplit records intent then rejects duplicates while pending", async () => {
+describe("discovery", () => {
+  it("lists unclaimed invites for an email and splits for a participant", async () => {
     const creator = await createUser("dev:alice", "alice@example.com", WALLET);
     const bob = await createUser("dev:bob", "bob@example.com", BOB_WALLET);
 
@@ -166,7 +231,39 @@ describe("pay flow against real db", () => {
       inviteEmails: ["bob@example.com"],
       requireVerification: false,
     });
+    await markSplitOpened(split.id, OPEN_TX);
+
+    const invited = await listInvited("bob@example.com");
+    expect(invited).toHaveLength(1);
+    expect(invited[0]!.split.id).toBe(split.id);
+
+    const mine = await listMine(creator.id);
+    expect(mine.map((s) => s.id)).toContain(split.id);
+
+    const bobMineBefore = await listMine(bob.id);
+    expect(bobMineBefore).toHaveLength(0);
+  });
+});
+
+describe("pay flow against real db", () => {
+  async function openedTwoWaySplit() {
+    const creator = await createUser("dev:alice", "alice@example.com", WALLET);
+    const bob = await createUser("dev:bob", "bob@example.com", BOB_WALLET);
+    const split = await createSplit(creator.id, {
+      title: "Trip",
+      totalAmount: "120.00",
+      payeeAddress: WALLET,
+      participantCount: 2,
+      inviteEmails: ["bob@example.com"],
+      requireVerification: false,
+    });
+    await markSplitOpened(split.id, OPEN_TX);
     await joinSplit(split.id, bob.id, "bob@example.com");
+    return { split, creator, bob };
+  }
+
+  it("paySplit records intent then rejects duplicates while pending", async () => {
+    const { split, bob } = await openedTwoWaySplit();
 
     await paySplit(split.id, bob.id, TX_HASH, "60");
     const detail = await getSplitOrThrow(split.id);
@@ -180,18 +277,7 @@ describe("pay flow against real db", () => {
   });
 
   it("paySplit rejects an amount mismatch", async () => {
-    const creator = await createUser("dev:alice", "alice@example.com", WALLET);
-    const bob = await createUser("dev:bob", "bob@example.com", BOB_WALLET);
-
-    const split = await createSplit(creator.id, {
-      title: "Trip",
-      totalAmount: "120.00",
-      payeeAddress: WALLET,
-      participantCount: 2,
-      inviteEmails: ["bob@example.com"],
-      requireVerification: false,
-    });
-    await joinSplit(split.id, bob.id, "bob@example.com");
+    const { split, bob } = await openedTwoWaySplit();
 
     await expect(paySplit(split.id, bob.id, TX_HASH, "61")).rejects.toMatchObject({
       code: "AMOUNT_MISMATCH",

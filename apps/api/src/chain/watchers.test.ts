@@ -7,7 +7,7 @@ const hoisted = vi.hoisted(() => {
     statuses: new Map<string, Map<bigint, { collected: bigint; target: bigint; released: boolean }>>(),
     receipts: new Map<string, Record<string, unknown>>(),
     transactions: new Map<string, Record<string, unknown>>(),
-    releaseCalls: [] as Array<{ splitId: bigint; from: string }>,
+    writeCalls: [] as unknown[],
   };
   const stub = {
     state,
@@ -32,18 +32,12 @@ const hoisted = vi.hoisted(() => {
       if (!status) throw new Error(`no status for split ${args[0]}`);
       return [status.collected, status.target, status.released] as const;
     },
-    writeContract: async (
-      _client: unknown,
-      params: { args: [bigint]; account: { address: string } },
-    ) => {
-      state.releaseCalls.push({ splitId: params.args[0], from: params.account.address });
-      return `0xrelease_${params.args[0].toString()}`;
+    writeContract: async (...args: unknown[]) => {
+      state.writeCalls.push(args);
+      return "0xshouldnotbeused";
     },
   };
-  return {
-    stub,
-    RELEASER: "0xffffffffffffffffffffffffffffffffffffffff",
-  };
+  return { stub };
 });
 
 const chainStub = hoisted.stub;
@@ -55,8 +49,6 @@ vi.mock("../db.js", async () => {
 
 vi.mock("./client.js", () => ({
   getPublicClient: () => ({ chain: { id: 5042002 } }),
-  getWalletClient: () => ({ chain: { id: 5042002 } }),
-  getReleaserAccount: () => ({ address: hoisted.RELEASER }),
 }));
 
 vi.mock("viem/actions", () => ({
@@ -66,8 +58,7 @@ vi.mock("viem/actions", () => ({
     hoisted.stub.getTransaction(args[0] as never, args[1] as never),
   readContract: (...args: unknown[]) =>
     hoisted.stub.readContract(args[0] as never, args[1] as never),
-  writeContract: (...args: unknown[]) =>
-    hoisted.stub.writeContract(args[0] as never, args[1] as never),
+  writeContract: (...args: unknown[]) => hoisted.stub.writeContract(...args),
 }));
 
 import { prisma } from "../db.js";
@@ -91,6 +82,8 @@ function seedSplit(status = "PENDING") {
       payeeAddress: ALICE_WALLET,
       requireVerification: false,
       status,
+      openedAt: new Date(),
+      openTxHash: TX,
       releaseTxHash: null,
       releasedAt: null,
       createdAt: new Date(),
@@ -134,7 +127,7 @@ beforeEach(() => {
   db.splitParticipant.clear();
   chainStub.state.receipts.clear();
   chainStub.state.transactions.clear();
-  chainStub.state.releaseCalls.length = 0;
+  chainStub.state.writeCalls.length = 0;
   chainStub.state.statuses.clear();
 });
 
@@ -201,33 +194,19 @@ describe("confirmTick", () => {
 });
 
 describe("releaseTick", () => {
-  it("releases a fully funded split and records the tx", async () => {
-    seedSplit("PARTIALLY_PAID");
-    seedEscrowStatus({ collected: 60000000n, target: 60000000n, released: false });
-    chainStub.state.receipts.set("0xrelease_1", { status: "success" });
-
-    await releaseTick();
-
-    expect(chainStub.state.releaseCalls).toHaveLength(1);
-    expect(chainStub.state.releaseCalls[0]?.splitId).toBe(1n);
-    const split = db.split.rows[0] as unknown as {
-      status?: string;
-      releaseTxHash?: string | null;
-      releasedAt?: Date | null;
-    };
-    expect(split.status).toBe("RELEASED");
-    expect(split.releaseTxHash).toBe("0xrelease_1");
-    expect(split.releasedAt).toBeInstanceOf(Date);
-  });
-
-  it("mirrors an external release without sending its own tx", async () => {
+  it("mirrors an on-chain release into the db without sending a tx", async () => {
     seedSplit("PARTIALLY_PAID");
     seedEscrowStatus({ collected: 60000000n, target: 60000000n, released: true });
 
     await releaseTick();
 
-    expect(chainStub.state.releaseCalls).toHaveLength(0);
-    expect((db.split.rows[0] as unknown as { status?: string }).status).toBe("RELEASED");
+    const split = db.split.rows[0] as unknown as {
+      status?: string;
+      releasedAt?: Date | null;
+    };
+    expect(split.status).toBe("RELEASED");
+    expect(split.releasedAt).toBeInstanceOf(Date);
+    expect(chainStub.state.writeCalls).toHaveLength(0);
   });
 
   it("does nothing while the split is underfunded", async () => {
@@ -236,16 +215,17 @@ describe("releaseTick", () => {
 
     await releaseTick();
 
-    expect(chainStub.state.releaseCalls).toHaveLength(0);
+    expect(chainStub.state.writeCalls).toHaveLength(0);
     expect((db.split.rows[0] as unknown as { status?: string }).status).toBe("PENDING");
   });
 
   it("skips splits already released", async () => {
     seedSplit("RELEASED");
+    seedEscrowStatus({ collected: 60000000n, target: 60000000n, released: true });
 
     await releaseTick();
 
-    expect(chainStub.state.releaseCalls).toHaveLength(0);
+    expect(chainStub.state.writeCalls).toHaveLength(0);
   });
 });
 

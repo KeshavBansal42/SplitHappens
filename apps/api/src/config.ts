@@ -23,9 +23,6 @@ const envSchema = z.object({
     .string()
     .regex(/^0x[a-fA-F0-9]{40}$/, "ESCROW_ADDRESS must be a 0x address")
     .transform((v) => v.toLowerCase()),
-  RELEASER_PRIVATE_KEY: z
-    .string()
-    .regex(/^0x[a-fA-F0-9]{64}$/, "RELEASER_PRIVATE_KEY must be a 0x-hex key"),
 
   WATCH_INTERVAL_MS: z.coerce.number().int().positive().default(10_000),
   CONFIRM_INTERVAL_MS: z.coerce.number().int().positive().default(5_000),

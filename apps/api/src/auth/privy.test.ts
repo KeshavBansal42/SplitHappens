@@ -11,7 +11,7 @@ vi.mock("../db.js", async () => {
 vi.mock("../chain/escrow.js", async () => {
   const { createMockEscrow } = await import("../test/mockEscrow.js");
   const mock = createMockEscrow();
-  return { openSplitEscrow: mock.openSplitEscrow };
+  return { verifyOpenSplitTx: mock.verifyOpenSplitTx };
 });
 
 import { prisma } from "../db.js";

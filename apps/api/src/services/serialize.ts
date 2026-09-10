@@ -4,6 +4,7 @@ import type {
   SplitDetail,
   SplitInvite,
   SplitStatus,
+  SplitSummary,
 } from "@splithappens/shared";
 import { decimalToAmount } from "../chain/units.js";
 
@@ -13,6 +14,8 @@ type SplitWithParticipants = Prisma.SplitGetPayload<{
     invites: true;
   };
 }>;
+
+type SplitRow = Prisma.SplitGetPayload<Record<string, never>>;
 
 type SplitParticipantRow = SplitWithParticipants["participants"][number];
 type SplitInviteRow = SplitWithParticipants["invites"][number];
@@ -49,6 +52,19 @@ export function mapInvite(row: SplitInviteRow): SplitInvite {
   };
 }
 
+export function mapSplitSummary(split: SplitRow): SplitSummary {
+  return {
+    id: split.id.toString(),
+    title: split.title,
+    totalAmount: decimalToAmount(split.totalAmount),
+    payeeAddress: split.payeeAddress,
+    status: mapSplitStatus(split.status),
+    participantCount: split.participantCount,
+    opened: split.openedAt !== null,
+    createdAt: split.createdAt.toISOString(),
+  };
+}
+
 export function mapSplitDetail(split: SplitWithParticipants): SplitDetail {
   return {
     id: split.id.toString(),
@@ -57,6 +73,9 @@ export function mapSplitDetail(split: SplitWithParticipants): SplitDetail {
     payeeAddress: split.payeeAddress,
     requireVerification: split.requireVerification,
     participantCount: split.participantCount,
+    creatorId: split.creatorId ?? "",
+    opened: split.openedAt !== null,
+    openTxHash: split.openTxHash,
     status: mapSplitStatus(split.status),
     releaseTxHash: split.releaseTxHash,
     releasedAt: split.releasedAt?.toISOString() ?? null,

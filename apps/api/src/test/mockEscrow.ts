@@ -1,19 +1,29 @@
 import { vi } from "vitest";
 
-export function createMockEscrow() {
-  const calls: Array<{ splitId: bigint; payeeAddress: string; targetAmount: string }> = [];
+export type VerifyOpenSplitCall = {
+  splitId: bigint;
+  txHash: string;
+  payeeAddress: string;
+  targetAmount: string;
+};
 
-  const openSplitEscrow = vi.fn(
-    async (splitId: bigint, payeeAddress: string, targetAmount: string) => {
-      calls.push({ splitId, payeeAddress, targetAmount });
+export function createMockEscrow() {
+  const calls: VerifyOpenSplitCall[] = [];
+
+  const verifyOpenSplitTx = vi.fn(
+    async (
+      splitId: bigint,
+      args: { txHash: string; payeeAddress: string; targetAmount: string },
+    ) => {
+      calls.push({ splitId, ...args });
     },
   );
 
   return {
     calls,
-    openSplitEscrow,
+    verifyOpenSplitTx,
     failNext(error: Error) {
-      openSplitEscrow.mockRejectedValueOnce(error);
+      verifyOpenSplitTx.mockRejectedValueOnce(error);
     },
   };
 }

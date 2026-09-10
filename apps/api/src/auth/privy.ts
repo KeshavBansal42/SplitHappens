@@ -31,25 +31,40 @@ async function upsertUser(
   return prisma.user.upsert({
     where: { privyUserId },
     create: { privyUserId, walletAddress, email },
-    update: email ? { email } : {},
+    update: {
+      ...(walletAddress ? { walletAddress } : {}),
+      ...(email ? { email } : {}),
+    },
   });
 }
 
-async function verifyPrivyToken(token: string): Promise<AuthedUser> {
+async function verifyPrivyToken(
+  accessToken: string,
+  identityToken: string | null,
+): Promise<AuthedUser> {
   try {
     const client = await getPrivyClient();
-    const claims = await client.verifyAuthToken(token);
+    const claims = await client.verifyAuthToken(accessToken);
 
     let email: string | null = null;
-    try {
-      const privyUser = await client.getUser({ idToken: token });
-      const linked = privyUser.email as { address?: string } | undefined;
-      email = linked?.address?.toLowerCase() ?? null;
-    } catch {
-      email = null;
+    let walletAddress: string | null = null;
+
+    // The identity token is what carries the linked email + wallet. The
+    // access token only proves who the caller is.
+    if (identityToken) {
+      try {
+        const privyUser = await client.getUser({ idToken: identityToken });
+        const linkedEmail = privyUser.email as { address?: string } | undefined;
+        email = linkedEmail?.address?.toLowerCase() ?? null;
+        walletAddress =
+          (privyUser.wallet?.address as string | undefined)?.toLowerCase() ??
+          null;
+      } catch {
+        email = null;
+      }
     }
 
-    const user = await upsertUser(claims.userId, null, email);
+    const user = await upsertUser(claims.userId, walletAddress, email);
     return {
       id: user.id,
       privyUserId: user.privyUserId,
@@ -108,7 +123,8 @@ export async function requireAuth(
       if (!token) {
         throw new ApiError("UNAUTHORIZED", "Missing Bearer token");
       }
-      req.user = await verifyPrivyToken(token);
+      const identityToken = req.header("x-privy-id-token") ?? null;
+      req.user = await verifyPrivyToken(token, identityToken);
     }
     next();
   } catch (err) {

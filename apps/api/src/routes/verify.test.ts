@@ -41,11 +41,15 @@ function seedSplit(requireVerification: boolean) {
       payeeAddress: WALLET,
       requireVerification,
       status: "PENDING",
+      creatorId: "u_alice",
+      openedAt: new Date(),
+      openTxHash: null,
       releaseTxHash: null,
       releasedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       participants: [],
+      invites: [],
     } as unknown as Row,
   ]);
 }

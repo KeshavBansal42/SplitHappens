@@ -57,6 +57,10 @@ function makeDelegate(): Delegate {
         data.createdAt ??= new Date();
         data.updatedAt ??= new Date();
         data.status ??= "PENDING";
+        data.openedAt ??= null;
+        data.openTxHash ??= null;
+        data.releaseTxHash ??= null;
+        data.releasedAt ??= null;
       } else {
         data.id = `cuid_${(nextCuid++).toString()}`;
         data.createdAt ??= new Date();
@@ -88,8 +92,25 @@ function makeDelegate(): Delegate {
           return holder.current.filter((r) => r.txHash !== notVal);
         }
       }
+      if (where?.openedAt && typeof where.openedAt === "object") {
+        const notVal = (where.openedAt as { not?: unknown }).not;
+        if (notVal !== undefined) {
+          return holder.current.filter((r) => r.openedAt !== notVal);
+        }
+      }
       if (where?.paid !== undefined) {
         return holder.current.filter((r) => r.paid === where.paid);
+      }
+      if (where?.userId !== undefined) {
+        return holder.current.filter((r) => r.userId === where.userId);
+      }
+      if (where?.email !== undefined) {
+        return holder.current.filter((r) => r.email === where.email);
+      }
+      if (where?.claimedByUserId === null) {
+        return holder.current.filter(
+          (r) => r.claimedByUserId === null || r.claimedByUserId === undefined,
+        );
       }
       return holder.current;
     }),

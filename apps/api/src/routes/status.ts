@@ -43,6 +43,9 @@ export function statusRouter(): Router {
           payeeAddress: split.payeeAddress,
           requireVerification: split.requireVerification,
           participantCount: split.participantCount,
+          creatorId: split.creatorId ?? "",
+          opened: split.openedAt !== null,
+          openTxHash: split.openTxHash,
         },
         onChain: {
           collected: unitsToAmount(onChain.collected),

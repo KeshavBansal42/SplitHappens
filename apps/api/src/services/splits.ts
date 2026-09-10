@@ -5,6 +5,7 @@ import {
   amountToUnits,
   decimalToUnits,
 } from "../chain/units.js";
+import { verifyOpenSplitTx } from "../chain/escrow.js";
 import { sharesAsAmounts } from "./shares.js";
 
 export const splitWithParticipants = Prisma.validator<Prisma.SplitDefaultArgs>()({
@@ -48,6 +49,7 @@ export async function createSplit(
         payeeAddress: input.payeeAddress,
         requireVerification: input.requireVerification,
         participantCount: input.participantCount,
+        creatorId,
         participants: {
           create: {
             userId: creatorId,
@@ -68,8 +70,54 @@ export async function createSplit(
   });
 }
 
+export async function markSplitOpened(
+  splitId: bigint,
+  txHash: string,
+): Promise<SplitWithParticipants> {
+  const split = await getSplitOrThrow(splitId);
+
+  if (split.openedAt) {
+    return split;
+  }
+
+  await verifyOpenSplitTx(splitId, {
+    txHash,
+    payeeAddress: split.payeeAddress,
+    targetAmount: split.totalAmount.toString(),
+    from: null,
+  });
+
+  await prisma.split.update({
+    where: { id: splitId },
+    data: { openedAt: new Date(), openTxHash: txHash },
+  });
+
+  return getSplitOrThrow(splitId);
+}
+
+export async function listInvited(email: string) {
+  return prisma.splitInvite.findMany({
+    where: { email, claimedByUserId: null },
+    include: { split: true },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function listMine(userId: string) {
+  const rows = await prisma.splitParticipant.findMany({
+    where: { userId },
+    include: { split: true },
+    orderBy: { createdAt: "desc" },
+  });
+  return rows.map((row) => row.split);
+}
+
 export async function joinSplit(splitId: bigint, userId: string, email: string): Promise<string> {
   const split = await getSplitOrThrow(splitId);
+
+  if (!split.openedAt) {
+    throw new ApiError("CONFLICT", "Split is not open yet");
+  }
 
   if (split.status === "RELEASED") {
     throw new ApiError("CONFLICT", "Split is already released");
@@ -120,15 +168,22 @@ export async function addInvites(
     throw new ApiError("CONFLICT", "Split is already released");
   }
 
+  if (split.creatorId !== creatorId) {
+    throw new ApiError("FORBIDDEN", "Only the split creator can add people");
+  }
+
   const creator = split.participants.find((p) => p.userId === creatorId);
   if (!creator) {
     throw new ApiError("FORBIDDEN", "Only the split creator can add people");
   }
 
-  const nonCreatorJoined = split.participants.some(
-    (p) => p.userId !== creatorId,
+  // Locked once anyone else joins, or once a deposit exists. Adding a seat
+  // after money is in would recompute every share and strand what's already
+  // been deposited.
+  const locked = split.participants.some(
+    (p) => p.userId !== creatorId || p.paid || p.txHash !== null,
   );
-  if (nonCreatorJoined) {
+  if (locked) {
     throw new ApiError("CONFLICT", "This split is already locked");
   }
 
@@ -192,6 +247,10 @@ export async function paySplit(
   amount: string,
 ) {
   const split = await getSplitOrThrow(splitId);
+
+  if (!split.openedAt) {
+    throw new ApiError("CONFLICT", "Split is not open yet");
+  }
 
   if (split.status === "RELEASED") {
     throw new ApiError("CONFLICT", "Split is already released");

@@ -13,6 +13,7 @@ import { createApp } from "./app.js";
 import { logAuthModeWarning } from "./auth/privy.js";
 import { startConfirmWatcher } from "./chain/confirm.js";
 import { startReleaseWatcher } from "./chain/release.js";
+import { startCleanupWatcher } from "./chain/cleanup.js";
 
 async function main(): Promise<void> {
   const config = getConfig();
@@ -28,6 +29,7 @@ async function main(): Promise<void> {
 
   const confirmWatcher = startConfirmWatcher();
   const releaseWatcher = startReleaseWatcher();
+  const cleanupWatcher = startCleanupWatcher();
   logger.info(
     { confirmMs: config.CONFIRM_INTERVAL_MS, watchMs: config.WATCH_INTERVAL_MS },
     "chain watchers started",
@@ -36,7 +38,11 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     logger.info({ signal }, "shutting down");
     server.close();
-    await Promise.allSettled([confirmWatcher.stop(), releaseWatcher.stop()]);
+    await Promise.allSettled([
+      confirmWatcher.stop(),
+      releaseWatcher.stop(),
+      cleanupWatcher.stop(),
+    ]);
     await prisma.$disconnect().catch(() => undefined);
     process.exit(0);
   };

@@ -1,74 +1,44 @@
-import { getTransactionReceipt, readContract, writeContract } from "viem/actions";
+import { readContract } from "viem/actions";
 import { getConfig } from "../config.js";
-import { getPublicClient, getReleaserAccount, getWalletClient } from "./client.js";
+import { getPublicClient } from "./client.js";
 import { escrowAbi } from "./escrowAbi.js";
 import { prisma } from "../db.js";
 import { logger } from "../logger.js";
 import { startWatcher } from "./watcher.js";
 
+/**
+ * Read-only: mirrors the escrow's released flag into the db. Releasing is
+ * triggered by a participant's wallet, not by the backend.
+ */
 export async function releaseTick(): Promise<void> {
   const config = getConfig();
   const splits = await prisma.split.findMany({
-    where: { status: { not: "RELEASED" } },
+    where: { status: { not: "RELEASED" }, openedAt: { not: null } },
   });
 
   const publicClient = getPublicClient();
-  const walletClient = getWalletClient();
   const escrow = config.ESCROW_ADDRESS as `0x${string}`;
 
   for (const split of splits) {
-    let status;
+    let released: boolean;
     try {
-      const [collected, target, released] = await readContract(publicClient, {
+      [, , released] = await readContract(publicClient, {
         address: escrow,
         abi: escrowAbi,
         functionName: "getSplitStatus",
         args: [split.id],
       });
-      status = { collected, target, released };
     } catch (err) {
       logger.warn({ err, splitId: split.id.toString() }, "release watcher read failed");
       continue;
     }
 
-    if (status.released) {
+    if (released) {
       logger.info({ splitId: split.id.toString() }, "split released on-chain");
       await prisma.split.update({
         where: { id: split.id },
         data: { status: "RELEASED", releasedAt: new Date() },
       });
-      continue;
-    }
-
-    if (status.collected >= status.target) {
-      const hash = await writeContract(walletClient, {
-        address: escrow,
-        abi: escrowAbi,
-        functionName: "release",
-        args: [split.id],
-        account: getReleaserAccount(),
-        chain: walletClient.chain,
-      });
-      const receipt = await getTransactionReceipt(publicClient, { hash });
-      if (receipt.status === "success") {
-        await prisma.split.update({
-          where: { id: split.id },
-          data: {
-            status: "RELEASED",
-            releaseTxHash: hash,
-            releasedAt: new Date(),
-          },
-        });
-        logger.info(
-          { splitId: split.id.toString(), releaseTxHash: hash },
-          "split released",
-        );
-      } else {
-        logger.warn(
-          { splitId: split.id.toString(), releaseTxHash: hash },
-          "release transaction reverted",
-        );
-      }
     }
   }
 }

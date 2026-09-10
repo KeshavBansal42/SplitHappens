@@ -5,24 +5,30 @@ import {
   createSplitRequestSchema,
   createSplitResponseSchema,
   getSplitResponseSchema,
+  invitedSplitsResponseSchema,
   joinSplitResponseSchema,
+  mySplitsResponseSchema,
+  openSplitRequestSchema,
   paySplitRequestSchema,
   paySplitResponseSchema,
 } from "@splithappens/shared";
 import { requireAuth } from "../auth/privy.js";
 import { ApiError } from "../errors.js";
-import { prisma } from "../db.js";
-import { openSplitEscrow } from "../chain/escrow.js";
 import {
   addInvites,
   createSplit,
   getSplitOrThrow,
   joinSplit,
+  listInvited,
+  listMine,
+  markSplitOpened,
   paySplit,
 } from "../services/splits.js";
 import {
+  mapInvite,
   mapParticipant,
   mapSplitDetail,
+  mapSplitSummary,
 } from "../services/serialize.js";
 import { parseBody } from "./helpers.js";
 
@@ -53,19 +59,43 @@ export function splitsRouter(): Router {
         requireVerification: input.requireVerification ?? false,
       });
 
-      try {
-        await openSplitEscrow(split.id, input.payeeAddress, input.totalAmount);
-      } catch (err) {
-        await prisma.split.delete({ where: { id: split.id } });
-        if (err instanceof ApiError) throw err;
-        throw new ApiError(
-          "CHAIN_ERROR",
-          "Failed to open the split on-chain",
-        );
-      }
-
       const body = createSplitResponseSchema.parse(mapSplitDetail(split));
       res.status(201).json(body);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get("/invited", async (req, res, next) => {
+    try {
+      const user = req.user!;
+      if (!user.email) {
+        res.json(invitedSplitsResponseSchema.parse({ viewerId: user.id, splits: [] }));
+        return;
+      }
+      const invites = await listInvited(user.email);
+      const body = invitedSplitsResponseSchema.parse({
+        viewerId: user.id,
+        splits: invites.map((invite) => ({
+          ...mapSplitSummary(invite.split),
+          myShareAmount: mapInvite(invite).shareAmount,
+        })),
+      });
+      res.json(body);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get("/mine", async (req, res, next) => {
+    try {
+      const user = req.user!;
+      const splits = await listMine(user.id);
+      const body = mySplitsResponseSchema.parse({
+        viewerId: user.id,
+        splits: splits.map(mapSplitSummary),
+      });
+      res.json(body);
     } catch (err) {
       next(err);
     }
@@ -75,6 +105,24 @@ export function splitsRouter(): Router {
     try {
       const id = parseId(req.params.id);
       const split = await getSplitOrThrow(id);
+      res.json(getSplitResponseSchema.parse(mapSplitDetail(split)));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post("/:id/open", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      const input = parseBody(openSplitRequestSchema, req.body);
+      const user = req.user!;
+
+      const existing = await getSplitOrThrow(id);
+      if (existing.creatorId !== user.id) {
+        throw new ApiError("FORBIDDEN", "Only the split creator can open it");
+      }
+
+      const split = await markSplitOpened(id, input.txHash);
       res.json(getSplitResponseSchema.parse(mapSplitDetail(split)));
     } catch (err) {
       next(err);
