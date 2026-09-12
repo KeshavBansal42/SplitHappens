@@ -37,10 +37,37 @@
   white-space: nowrap;
 }
 
+.profile-details-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-6);
+  flex-wrap: wrap;
+}
+
 .profile-fields {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
+}
+
+.profile-qr {
+  flex-shrink: 0;
+}
+
+.profile-qr-tile {
+  display: flex;
+  padding: 0.75rem;
+  background: #FFFFFF;
+  border-radius: var(--radius-md);
+  line-height: 0;
+}
+
+.profile-qr-empty {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
 }
 
 .profile-field {

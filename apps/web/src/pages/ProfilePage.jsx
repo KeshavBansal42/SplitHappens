@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { animate, stagger } from 'animejs';
+import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../lib/auth.jsx';
 
 export default function ProfilePage() {
@@ -49,7 +50,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="card">
+      <div className="card profile-details-card">
         <div className="profile-fields">
           <div className="profile-field">
             <span className="profile-field-label">Email</span>
@@ -73,6 +74,27 @@ export default function ProfilePage() {
               </button>
             </div>
           </div>
+        </div>
+
+        <div className="profile-qr">
+          {wallet ? (
+            <div
+              className="profile-qr-tile"
+              role="img"
+              aria-label={`QR code for wallet address ${wallet}`}
+            >
+              <QRCodeSVG
+                value={wallet}
+                size={132}
+                level="M"
+                marginSize={2}
+                bgColor="#FFFFFF"
+                fgColor="#0A0A0A"
+              />
+            </div>
+          ) : (
+            <span className="profile-qr-empty">No wallet connected</span>
+          )}
         </div>
       </div>
     </div>
