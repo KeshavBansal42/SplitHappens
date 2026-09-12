@@ -212,6 +212,37 @@
   color: var(--text-muted);
 }
 
+.form-input-with-action {
+  position: relative;
+  display: flex;
+}
+
+.form-input-with-action .form-input {
+  width: 100%;
+  padding-right: 2.75rem;
+}
+
+.form-input-action {
+  position: absolute;
+  right: var(--sp-2);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  padding: var(--sp-2);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.form-input-action:hover {
+  color: var(--text-primary);
+}
+
+.form-input-action svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
