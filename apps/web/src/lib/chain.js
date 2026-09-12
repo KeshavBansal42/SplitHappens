@@ -1,12 +1,14 @@
 import { createPublicClient, defineChain, http } from "viem";
-import { ARC_RPC_URL, USDC_ADDRESS } from "./env.js";
+import { ARC_RPC_URL, ESCROW_ADDRESS, USDC_ADDRESS } from "./env.js";
 
 export const USDC_DECIMALS = 6;
 
 export const arcTestnet = defineChain({
   id: 5042002,
   name: "Arc Testnet",
-  nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 6 },
+  // USDC is the gas token here. Native balances are 18-decimal wei even
+  // though the ERC-20 interface reports 6 decimals.
+  nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
   rpcUrls: { default: { http: [ARC_RPC_URL] } },
 });
 
@@ -16,6 +18,22 @@ export function getPublicClient() {
 
 export function usdcAddress() {
   return USDC_ADDRESS;
+}
+
+/** True when the escrow already has this split id registered on-chain. */
+export async function escrowSplitExists(splitId) {
+  if (!ESCROW_ADDRESS) return false;
+  try {
+    await getPublicClient().readContract({
+      address: ESCROW_ADDRESS,
+      abi: escrowAbi,
+      functionName: "getSplitStatus",
+      args: [BigInt(splitId)],
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export const escrowAbi = [

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { stagger, createTimeline } from 'animejs';
 import { encodeFunctionData } from 'viem';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { adaptStatus } from '../lib/transform.js';
+import { openSplitOnChain } from '../lib/openSplit.js';
 import {
   CHAIN_ID,
   amountToUnits,
@@ -30,6 +31,7 @@ const statusClass = {
 
 export default function SplitDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const pageRef = useRef(null);
   const { user, isDev, sendTransaction } = useAuth();
   const [split, setSplit] = useState(null);
@@ -91,21 +93,14 @@ export default function SplitDetail() {
   };
 
   const openOnChain = async (target) => {
-    if (isDev) {
-      await api.openSplit(target.id, { txHash: DEV_TX_HASH });
-      return;
-    }
-    const data = encodeFunctionData({
-      abi: escrowAbi,
-      functionName: 'openSplit',
-      args: [
-        BigInt(target.id),
-        target.payeeAddress,
-        amountToUnits(target.totalAmountRaw),
-      ],
-    });
-    const txHash = await signTx(ESCROW_ADDRESS, data);
-    await api.openSplit(target.id, { txHash });
+    await openSplitOnChain(
+      {
+        id: target.id,
+        payeeAddress: target.payeeAddress,
+        totalAmount: target.totalAmountRaw,
+      },
+      { isDev, sendTransaction },
+    );
   };
 
   const handleFinishSetup = async () => {
@@ -118,6 +113,22 @@ export default function SplitDetail() {
     } catch (err) {
       setError(err.message);
     } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCancelSplit = async () => {
+    if (!split || busy) return;
+    if (!window.confirm('Cancel this split? Nothing is on-chain yet, so it will just be deleted.')) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.cancelSplit(split.id);
+      navigate('/');
+    } catch (err) {
+      setError(err.message);
       setBusy(false);
     }
   };
@@ -355,6 +366,15 @@ export default function SplitDetail() {
               </p>
               <button className="pay-cta-btn" onClick={handleFinishSetup} disabled={busy}>
                 <span>{busy ? 'Opening...' : 'Open on-chain'}</span>
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={handleCancelSplit}
+                disabled={busy}
+                style={{ marginTop: 'var(--sp-2)', alignSelf: 'center' }}
+              >
+                Cancel split
               </button>
             </div>
           )}

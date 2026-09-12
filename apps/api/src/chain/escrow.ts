@@ -1,10 +1,34 @@
-import { getTransaction, getTransactionReceipt } from "viem/actions";
+import { getTransaction, getTransactionReceipt, readContract } from "viem/actions";
 import { decodeFunctionData } from "viem/utils";
 import { getConfig } from "../config.js";
 import { getPublicClient } from "./client.js";
 import { escrowAbi } from "./escrowAbi.js";
 import { amountToUnits } from "./units.js";
 import { ApiError } from "../errors.js";
+
+/**
+ * Reads a split straight from the escrow. Returns null when the split has
+ * never been opened, since the contract reverts in that case.
+ */
+export async function readOpenSplit(
+  splitId: bigint,
+): Promise<{ target: bigint; released: boolean } | null> {
+  const config = getConfig();
+  const publicClient = getPublicClient();
+  const escrow = config.ESCROW_ADDRESS as `0x${string}`;
+
+  try {
+    const [, target, released] = await readContract(publicClient, {
+      address: escrow,
+      abi: escrowAbi,
+      functionName: "getSplitStatus",
+      args: [splitId],
+    });
+    return { target, released };
+  } catch {
+    return null;
+  }
+}
 
 export type VerifyOpenSplitArgs = {
   txHash: string;

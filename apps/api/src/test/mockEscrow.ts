@@ -19,9 +19,15 @@ export function createMockEscrow() {
     },
   );
 
+  // By default the split is not on-chain yet, so the normal tx path runs.
+  const readOpenSplit = vi.fn(
+    async (): Promise<{ target: bigint; released: boolean } | null> => null,
+  );
+
   return {
     calls,
     verifyOpenSplitTx,
+    readOpenSplit,
     failNext(error: Error) {
       verifyOpenSplitTx.mockRejectedValueOnce(error);
     },

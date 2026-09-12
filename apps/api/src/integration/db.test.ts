@@ -14,6 +14,7 @@ import { sharesAsAmounts } from "../services/shares.js";
 
 vi.mock("../chain/escrow.js", () => ({
   verifyOpenSplitTx: vi.fn(async () => undefined),
+  readOpenSplit: vi.fn(async () => null),
 }));
 
 const WALLET = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";

@@ -1,12 +1,14 @@
+import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { ApiError } from "../errors.js";
 import { prisma } from "../db.js";
 import { getConfig } from "../config.js";
+import { logger } from "../logger.js";
 import {
   amountToUnits,
   decimalToUnits,
 } from "../chain/units.js";
-import { verifyOpenSplitTx } from "../chain/escrow.js";
+import { readOpenSplit, verifyOpenSplitTx } from "../chain/escrow.js";
 import { sharesAsAmounts } from "./shares.js";
 
 export const splitWithParticipants = Prisma.validator<Prisma.SplitDefaultArgs>()({
@@ -29,6 +31,17 @@ export async function getSplitOrThrow(id: bigint): Promise<SplitWithParticipants
   return split;
 }
 
+/// The escrow is shared between environments while each database is its own,
+/// so a sequential id would collide with someone else's split. Random ids keep
+/// them unique without needing to coordinate.
+function newSplitId(): bigint {
+  const bytes = randomBytes(8);
+  let value = 0n;
+  for (const byte of bytes) value = (value << 8n) | BigInt(byte);
+  // Stay positive and within Postgres' signed 64-bit range.
+  return (value % 9_000_000_000_000_000_000n) + 1n;
+}
+
 export async function createSplit(
   creatorId: string,
   input: {
@@ -45,6 +58,7 @@ export async function createSplit(
   return prisma.$transaction(async (tx) => {
     const split = await tx.split.create({
       data: {
+        id: newSplitId(),
         title: input.title,
         totalAmount: input.totalAmount,
         payeeAddress: input.payeeAddress,
@@ -73,12 +87,37 @@ export async function createSplit(
 
 export async function markSplitOpened(
   splitId: bigint,
-  txHash: string,
+  txHash?: string,
 ): Promise<SplitWithParticipants> {
   const split = await getSplitOrThrow(splitId);
 
   if (split.openedAt) {
     return split;
+  }
+
+  const expectedUnits = amountToUnits(split.totalAmount.toString());
+
+  // The open transaction may have landed in an earlier attempt without the
+  // app ever recording it, in which case resending it reverts on-chain.
+  const onChain = await readOpenSplit(splitId);
+  if (onChain) {
+    if (onChain.target === expectedUnits) {
+      await prisma.split.update({
+        where: { id: splitId },
+        data: { openedAt: new Date(), openTxHash: txHash ?? null },
+      });
+      logger.info({ splitId: splitId.toString() }, "reconciled split already open on-chain");
+      return getSplitOrThrow(splitId);
+    }
+
+    throw new ApiError(
+      "CONFLICT",
+      "This split id is already used on-chain by a different split. Cancel it and create a new one.",
+    );
+  }
+
+  if (!txHash) {
+    throw new ApiError("CONFLICT", "Split is not open on-chain yet");
   }
 
   // Dev mode has no wallet to sign with, so the chain check is skipped there.
@@ -97,6 +136,41 @@ export async function markSplitOpened(
   });
 
   return getSplitOrThrow(splitId);
+}
+
+/**
+ * Deletes a split the creator never opened. Nothing exists on-chain, so this
+ * only removes local rows. Once a split is open the escrow is permanent.
+ */
+export async function cancelSplit(
+  splitId: bigint,
+  userId: string,
+): Promise<void> {
+  const split = await getSplitOrThrow(splitId);
+
+  if (split.creatorId !== userId) {
+    throw new ApiError("FORBIDDEN", "Only the split creator can cancel it");
+  }
+
+  if (split.openedAt) {
+    throw new ApiError(
+      "CONFLICT",
+      "This split is open on-chain and can no longer be cancelled",
+    );
+  }
+
+  const payments = split.participants.some((p) => p.paid || p.txHash !== null);
+  if (payments) {
+    throw new ApiError("CONFLICT", "This split already has payments");
+  }
+
+  await prisma.$transaction([
+    prisma.splitInvite.deleteMany({ where: { splitId } }),
+    prisma.splitParticipant.deleteMany({ where: { splitId } }),
+    prisma.split.delete({ where: { id: splitId } }),
+  ]);
+
+  logger.info({ splitId: splitId.toString() }, "cancelled unopened split");
 }
 
 export async function listInvited(email: string) {

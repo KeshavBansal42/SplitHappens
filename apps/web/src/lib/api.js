@@ -85,6 +85,7 @@ async function request(method, path, body) {
 export const api = {
   createSplit: (body) => request('POST', '/api/v1/splits', body),
   openSplit: (id, body) => request('POST', `/api/v1/splits/${id}/open`, body),
+  cancelSplit: (id) => request('DELETE', `/api/v1/splits/${id}`),
   getSplit: (id) => request('GET', `/api/v1/splits/${id}`),
   getSplitStatus: (id) => request('GET', `/api/v1/splits/${id}/status`),
   getMySplits: () => request('GET', '/api/v1/splits/mine'),

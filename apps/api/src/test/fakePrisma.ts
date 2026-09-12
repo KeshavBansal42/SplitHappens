@@ -14,6 +14,7 @@ type Delegate = {
   upsert: ReturnType<typeof vi.fn>;
   aggregate: ReturnType<typeof vi.fn>;
   delete: ReturnType<typeof vi.fn>;
+  deleteMany: ReturnType<typeof vi.fn>;
   seed: (rows: Row[]) => void;
   clear: () => void;
 };
@@ -51,21 +52,21 @@ function makeDelegate(): Delegate {
   };
 
   const ensureId = (data: Row): void => {
+    const isSplit = "totalAmount" in data;
+
     if (data.id === undefined) {
-      if ("totalAmount" in data) {
-        data.id = nextBigInt++;
-        data.createdAt ??= new Date();
-        data.updatedAt ??= new Date();
-        data.status ??= "PENDING";
-        data.openedAt ??= null;
-        data.openTxHash ??= null;
-        data.releaseTxHash ??= null;
-        data.releasedAt ??= null;
-      } else {
-        data.id = `cuid_${(nextCuid++).toString()}`;
-        data.createdAt ??= new Date();
-        data.updatedAt ??= new Date();
-      }
+      data.id = isSplit ? nextBigInt++ : `cuid_${(nextCuid++).toString()}`;
+    }
+
+    data.createdAt ??= new Date();
+    data.updatedAt ??= new Date();
+
+    if (isSplit) {
+      data.status ??= "PENDING";
+      data.openedAt ??= null;
+      data.openTxHash ??= null;
+      data.releaseTxHash ??= null;
+      data.releasedAt ??= null;
     }
   };
 
@@ -167,6 +168,18 @@ function makeDelegate(): Delegate {
       const [removed] = holder.current.splice(index, 1);
       return removed;
     }),
+    deleteMany: vi.fn(
+      async ({ where }: { where?: Record<string, unknown> } = {}) => {
+        const before = holder.current.length;
+        if (where?.splitId !== undefined) {
+          holder.current = holder.current.filter((r) => r.splitId !== where.splitId);
+        } else {
+          holder.current = [];
+        }
+        delegate.rows = holder.current;
+        return { count: before - holder.current.length };
+      },
+    ),
     upsert: vi.fn(
       async ({
         where,
@@ -220,6 +233,7 @@ function makeDelegate(): Delegate {
       delegate.createMany.mockClear();
       delegate.update.mockClear();
       delegate.delete.mockClear();
+      delegate.deleteMany.mockClear();
       delegate.upsert.mockClear();
       delegate.aggregate.mockClear();
     },
@@ -236,8 +250,13 @@ export function createFakePrisma() {
     splitInvite: makeDelegate(),
     $transaction: vi.fn(),
   };
-  db.$transaction.mockImplementation(async (fn: (tx: typeof db) => Promise<unknown>) =>
-    fn(db),
+  db.$transaction.mockImplementation(
+    async (arg: ((tx: typeof db) => Promise<unknown>) | Promise<unknown>[]) => {
+      // Supports both prisma.$transaction(fn) and prisma.$transaction([...]).
+      if (typeof arg === "function") return arg(db);
+      if (Array.isArray(arg)) return Promise.all(arg);
+      return arg;
+    },
   );
   return db;
 }

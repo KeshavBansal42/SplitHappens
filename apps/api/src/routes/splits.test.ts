@@ -13,15 +13,18 @@ vi.mock("../db.js", async () => {
 vi.mock("../chain/escrow.js", async () => {
   const { createMockEscrow } = await import("../test/mockEscrow.js");
   const mock = createMockEscrow();
-  return { verifyOpenSplitTx: mock.verifyOpenSplitTx };
+  return {
+    verifyOpenSplitTx: mock.verifyOpenSplitTx,
+    readOpenSplit: mock.readOpenSplit,
+  };
 });
 
 import { prisma } from "../db.js";
-import { verifyOpenSplitTx } from "../chain/escrow.js";
+import { verifyOpenSplitTx, readOpenSplit } from "../chain/escrow.js";
 import { ApiError } from "../errors.js";
 
 const db = prisma as unknown as FakePrisma;
-const mockEscrow = { verifyOpenSplitTx } as unknown as MockEscrow;
+const mockEscrow = { verifyOpenSplitTx, readOpenSplit } as unknown as MockEscrow;
 const app = createApp();
 
 const WALLET = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -59,7 +62,7 @@ describe("POST /api/v1/splits", () => {
       .send(createBody());
 
     expect(res.status).toBe(201);
-    expect(res.body.id).toBe("1");
+    expect(res.body.id).toMatch(/^\d+$/);
     expect(res.body.totalAmount).toBe("120.00");
     expect(res.body.status).toBe("pending");
     expect(res.body.participantCount).toBe(3);
@@ -96,6 +99,7 @@ describe("POST /api/v1/splits/:id/open", () => {
     db.splitParticipant.clear();
     db.splitInvite.clear();
     mockEscrow.verifyOpenSplitTx.mockClear();
+    mockEscrow.readOpenSplit.mockClear();
   });
 
   async function createSplitAs(userId: string) {
@@ -129,6 +133,109 @@ describe("POST /api/v1/splits/:id/open", () => {
 
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe("FORBIDDEN");
+  });
+
+  it("reconciles a split that is already open on-chain without a tx", async () => {
+    const created = await createSplitAs("alice");
+    // The chain already has this split at the expected target.
+    mockEscrow.readOpenSplit.mockResolvedValueOnce({
+      target: 120000000n,
+      released: false,
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/splits/${created.id}/open`)
+      .set(devHeaders("alice"))
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.opened).toBe(true);
+    expect(mockEscrow.verifyOpenSplitTx).not.toHaveBeenCalled();
+  });
+
+  it("refuses to open when the split is not on-chain and no tx is given", async () => {
+    const created = await createSplitAs("alice");
+
+    const res = await request(app)
+      .post(`/api/v1/splits/${created.id}/open`)
+      .set(devHeaders("alice"))
+      .send({});
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("CONFLICT");
+  });
+
+  it("explains when the id belongs to a different on-chain split", async () => {
+    const created = await createSplitAs("alice");
+    // On-chain this id exists, but for another amount.
+    mockEscrow.readOpenSplit.mockResolvedValueOnce({
+      target: 99000000n,
+      released: false,
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/splits/${created.id}/open`)
+      .set(devHeaders("alice"))
+      .send({ txHash: TX_HASH });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toMatch(/already used on-chain/i);
+  });
+});
+
+describe("DELETE /api/v1/splits/:id", () => {
+  beforeEach(() => {
+    db.user.clear();
+    db.split.clear();
+    db.splitParticipant.clear();
+    db.splitInvite.clear();
+  });
+
+  async function createUnopenedSplit() {
+    const res = await request(app)
+      .post("/api/v1/splits")
+      .set(devHeaders("alice"))
+      .send(createBody());
+    return res.body as { id: string };
+  }
+
+  it("cancels an unopened split for its creator", async () => {
+    const created = await createUnopenedSplit();
+
+    const res = await request(app)
+      .delete(`/api/v1/splits/${created.id}`)
+      .set(devHeaders("alice"));
+
+    expect(res.status).toBe(204);
+    expect(db.split.rows).toHaveLength(0);
+    expect(db.splitInvite.rows).toHaveLength(0);
+    expect(db.splitParticipant.rows).toHaveLength(0);
+  });
+
+  it("rejects a non-creator with 403", async () => {
+    const created = await createUnopenedSplit();
+
+    const res = await request(app)
+      .delete(`/api/v1/splits/${created.id}`)
+      .set(devHeaders("bob"));
+
+    expect(res.status).toBe(403);
+    expect(db.split.rows).toHaveLength(1);
+  });
+
+  it("rejects cancelling a split that is already open", async () => {
+    const created = await createUnopenedSplit();
+    await request(app)
+      .post(`/api/v1/splits/${created.id}/open`)
+      .set(devHeaders("alice"))
+      .send({ txHash: TX_HASH });
+
+    const res = await request(app)
+      .delete(`/api/v1/splits/${created.id}`)
+      .set(devHeaders("alice"));
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("CONFLICT");
   });
 });
 

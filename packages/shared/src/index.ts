@@ -146,7 +146,9 @@ export const mySplitsResponseSchema = z.object({
 export type MySplitsResponse = z.infer<typeof mySplitsResponseSchema>;
 
 export const openSplitRequestSchema = z.object({
-  txHash: txHashSchema,
+  // Optional: when absent the backend reconciles against the chain instead of
+  // verifying a transaction, which handles opens that already landed.
+  txHash: txHashSchema.optional(),
 });
 
 export type OpenSplitRequest = z.infer<typeof openSplitRequestSchema>;

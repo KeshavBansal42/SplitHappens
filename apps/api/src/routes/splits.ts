@@ -16,6 +16,7 @@ import { requireAuth } from "../auth/privy.js";
 import { ApiError } from "../errors.js";
 import {
   addInvites,
+  cancelSplit,
   createSplit,
   getSplitOrThrow,
   joinSplit,
@@ -125,6 +126,18 @@ export function splitsRouter(): Router {
 
       const split = await markSplitOpened(id, input.txHash);
       res.json(getSplitResponseSchema.parse(mapSplitDetail(split, user.id)));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.delete("/:id", async (req, res, next) => {
+    try {
+      const id = parseId(req.params.id);
+      const user = req.user!;
+
+      await cancelSplit(id, user.id);
+      res.status(204).end();
     } catch (err) {
       next(err);
     }

@@ -1,13 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { animate, stagger } from 'animejs';
-import { encodeFunctionData } from 'viem';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
-import { CHAIN_ID, amountToUnits, escrowAbi } from '../lib/chain.js';
-import { ESCROW_ADDRESS } from '../lib/env.js';
-
-const DEV_TX_HASH = '0x' + '00'.repeat(32);
+import { openSplitOnChain } from '../lib/openSplit.js';
 
 export default function CreateSplit() {
   const navigate = useNavigate();
@@ -46,29 +42,6 @@ export default function CreateSplit() {
     setInvites(updated);
   };
 
-  const openOnChain = async (split) => {
-    if (isDev) {
-      await api.openSplit(split.id, { txHash: DEV_TX_HASH });
-      return;
-    }
-
-    const data = encodeFunctionData({
-      abi: escrowAbi,
-      functionName: 'openSplit',
-      args: [
-        BigInt(split.id),
-        split.payeeAddress,
-        amountToUnits(split.totalAmount),
-      ],
-    });
-    const receipt = await sendTransaction({
-      to: ESCROW_ADDRESS,
-      data,
-      chainId: CHAIN_ID,
-    });
-    await api.openSplit(split.id, { txHash: receipt.transactionHash });
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -90,7 +63,7 @@ export default function CreateSplit() {
       // Signing controls the creator's own wallet, so it can be cancelled.
       // The split page offers a retry if that happens.
       try {
-        await openOnChain(result);
+        await openSplitOnChain(result, { isDev, sendTransaction });
       } catch (txErr) {
         console.warn('openSplit not completed:', txErr.message);
       }
