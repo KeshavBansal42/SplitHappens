@@ -38,43 +38,61 @@ async function upsertUser(
   });
 }
 
-async function verifyPrivyToken(
-  accessToken: string,
-  identityToken: string | null,
-): Promise<AuthedUser> {
+type UserRow = {
+  id: string;
+  privyUserId: string;
+  email: string | null;
+  walletAddress: string | null;
+  verifiedHuman: boolean;
+};
+
+function toAuthedUser(row: UserRow): AuthedUser {
+  return {
+    id: row.id,
+    privyUserId: row.privyUserId,
+    email: row.email,
+    walletAddress: row.walletAddress,
+    verifiedHuman: row.verifiedHuman,
+  };
+}
+
+async function verifyPrivyToken(accessToken: string): Promise<AuthedUser> {
+  let claims: { userId: string };
   try {
     const client = await getPrivyClient();
-    const claims = await client.verifyAuthToken(accessToken);
-
-    let email: string | null = null;
-    let walletAddress: string | null = null;
-
-    // The identity token is what carries the linked email + wallet. The
-    // access token only proves who the caller is.
-    if (identityToken) {
-      try {
-        const privyUser = await client.getUser({ idToken: identityToken });
-        const linkedEmail = privyUser.email as { address?: string } | undefined;
-        email = linkedEmail?.address?.toLowerCase() ?? null;
-        walletAddress =
-          (privyUser.wallet?.address as string | undefined)?.toLowerCase() ??
-          null;
-      } catch {
-        email = null;
-      }
-    }
-
-    const user = await upsertUser(claims.userId, walletAddress, email);
-    return {
-      id: user.id,
-      privyUserId: user.privyUserId,
-      email: user.email,
-      walletAddress: user.walletAddress,
-      verifiedHuman: user.verifiedHuman,
-    };
+    claims = await client.verifyAuthToken(accessToken);
   } catch {
     throw new ApiError("UNAUTHORIZED", "Invalid or expired access token");
   }
+
+  const existing = await prisma.user.findUnique({
+    where: { privyUserId: claims.userId },
+  });
+
+  // The profile only needs fetching once. After that the local row has the
+  // email + wallet we care about, so we skip the extra Privy round trip
+  // (and its rate limits) on every request.
+  if (existing?.email && existing.walletAddress) {
+    return toAuthedUser(existing);
+  }
+
+  let email = existing?.email ?? null;
+  let walletAddress = existing?.walletAddress ?? null;
+
+  try {
+    const client = await getPrivyClient();
+    const privyUser = await client.getUserById(claims.userId);
+    const linkedEmail = privyUser.email as { address?: string } | undefined;
+    email = linkedEmail?.address?.toLowerCase() ?? email;
+    walletAddress =
+      (privyUser.wallet?.address as string | undefined)?.toLowerCase() ??
+      walletAddress;
+  } catch (err) {
+    logger.warn({ err, privyUserId: claims.userId }, "could not load privy profile");
+  }
+
+  const user = await upsertUser(claims.userId, walletAddress, email);
+  return toAuthedUser(user);
 }
 
 async function verifyDevHeaders(req: Request): Promise<AuthedUser> {
@@ -91,13 +109,7 @@ async function verifyDevHeaders(req: Request): Promise<AuthedUser> {
     req.header("x-dev-wallet") ?? null,
     email,
   );
-  return {
-    id: user.id,
-    privyUserId: user.privyUserId,
-    email: user.email,
-    walletAddress: user.walletAddress,
-    verifiedHuman: user.verifiedHuman,
-  };
+  return toAuthedUser(user);
 }
 
 declare global {
@@ -123,8 +135,7 @@ export async function requireAuth(
       if (!token) {
         throw new ApiError("UNAUTHORIZED", "Missing Bearer token");
       }
-      const identityToken = req.header("x-privy-id-token") ?? null;
-      req.user = await verifyPrivyToken(token, identityToken);
+      req.user = await verifyPrivyToken(token);
     }
     next();
   } catch (err) {

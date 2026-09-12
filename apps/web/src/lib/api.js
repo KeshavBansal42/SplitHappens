@@ -6,7 +6,6 @@ const DEV_MODE = Boolean(DEV_USER_ID && DEV_WALLET);
 
 let tokenGetters = {
   getAccessToken: async () => null,
-  getIdentityToken: () => null,
 };
 
 export function configureAuth(next) {
@@ -36,13 +35,11 @@ async function authHeaders() {
   }
 
   const accessToken = await tokenGetters.getAccessToken();
-  const identityToken = tokenGetters.getIdentityToken();
 
   return {
     headers: {
       ...base,
       ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
-      ...(identityToken ? { 'x-privy-id-token': identityToken } : {}),
     },
     hasToken: Boolean(accessToken),
   };
