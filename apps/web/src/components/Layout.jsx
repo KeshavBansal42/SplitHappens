@@ -94,7 +94,6 @@ export default function Layout() {
 
       <main className="main-content">
         <header className="topbar">
-          <div className="topbar-title">Arc Testnet · USDC</div>
           <div className="topbar-actions">
             <BalanceChip />
             <button className="topbar-btn" title="Log out" onClick={() => logout()}>

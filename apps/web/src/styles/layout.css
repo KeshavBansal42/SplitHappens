@@ -235,7 +235,6 @@
   height: var(--topbar-height);
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 0 var(--sp-8);
   border-bottom: 1px solid var(--border);
   background: var(--bg-topbar);
@@ -245,16 +244,12 @@
   backdrop-filter: blur(0.75rem);
 }
 
-.topbar-title {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
 .topbar-actions {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
+  justify-content: space-between;
+  width: 100%;
 }
 
 .topbar-btn {
