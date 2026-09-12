@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import { PrivyProvider as PrivyProviderBase, usePrivy, useIdentityToken } from '@privy-io/react-auth';
 import { configureAuth, IS_DEV_MODE } from './api.js';
 import { DEV_EMAIL, DEV_USER_ID, DEV_WALLET, PRIVY_APP_ID } from './env.js';
@@ -69,12 +69,12 @@ function PrivyAuthBridge({ children }) {
   const { ready, authenticated, login, logout, user, getAccessToken, sendTransaction } = usePrivy();
   const { identityToken } = useIdentityToken();
 
-  useEffect(() => {
-    configureAuth({
-      getAccessToken: () => getAccessToken(),
-      getIdentityToken: () => identityToken,
-    });
-  }, [getAccessToken, identityToken]);
+  // Set during render, not in an effect: child effects run before parent
+  // effects, so a page fetching on mount would otherwise fire with no token.
+  configureAuth({
+    getAccessToken: () => getAccessToken(),
+    getIdentityToken: () => identityToken,
+  });
 
   const value = useMemo(() => {
     const email = user?.email?.address ?? null;

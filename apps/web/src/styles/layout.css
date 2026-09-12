@@ -166,6 +166,29 @@
   font-family: var(--font-mono);
 }
 
+.wallet-copy {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: 100%;
+  color: var(--text-muted);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.wallet-copy:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.wallet-copy:disabled {
+  cursor: default;
+}
+
+.wallet-copy svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex-shrink: 0;
+}
+
 .main-content {
   flex: 1;
   margin-left: var(--sidebar-width);

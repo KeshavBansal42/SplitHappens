@@ -37,14 +37,30 @@ async function authHeaders() {
   };
 }
 
-async function request(method, path, body) {
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function send(method, path, body) {
   const res = await fetch(path, {
     method,
     headers: await authHeaders(),
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-
   const json = await res.json().catch(() => null);
+  return { res, json };
+}
+
+async function request(method, path, body) {
+  let { res, json } = await send(method, path, body);
+
+  // Right after login Privy may still be minting the token, which comes back
+  // as a 401. Give it a moment and try again before surfacing an error.
+  if (res.status === 401 && !DEV_MODE) {
+    for (let attempt = 0; attempt < 3 && res.status === 401; attempt++) {
+      await sleep(300 * (attempt + 1));
+      ({ res, json } = await send(method, path, body));
+    }
+  }
+
   if (!res.ok) {
     const err = new Error(json?.error?.message || 'Request failed');
     err.status = res.status;
