@@ -1,15 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getPublicClient, unitsToAmount, usdcAbi, usdcAddress } from './chain.js';
 
-/**
- * Reads the wallet's USDC balance from the escrow's token on Arc.
- * Retries on tab focus so a faucet top-up shows up without a reload.
- */
+const listeners = new Set();
+
+export function refreshUsdcBalances() {
+  for (const listener of listeners) listener();
+}
+
 export function useUsdcBalance(address) {
   const [state, setState] = useState({ status: 'loading' });
   const [nonce, setNonce] = useState(0);
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
+
+  useEffect(() => {
+    listeners.add(refresh);
+    return () => listeners.delete(refresh);
+  }, [refresh]);
 
   useEffect(() => {
     const token = usdcAddress();

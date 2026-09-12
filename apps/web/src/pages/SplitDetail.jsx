@@ -6,6 +6,7 @@ import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { adaptStatus } from '../lib/transform.js';
 import { openSplitOnChain } from '../lib/openSplit.js';
+import { refreshUsdcBalances } from '../lib/useUsdcBalance.js';
 import {
   CHAIN_ID,
   amountToUnits,
@@ -184,6 +185,7 @@ export default function SplitDetail() {
         const txHash = await signTx(ESCROW_ADDRESS, depositData);
         await api.paySplit(split.id, { txHash, amount });
       }
+      refreshUsdcBalances();
       await loadSplit();
     } catch (err) {
       setError(err.message);

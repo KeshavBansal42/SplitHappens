@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
+import BalanceChip from './BalanceChip.jsx';
 
 const navItems = [
   {
@@ -95,6 +96,7 @@ export default function Layout() {
         <header className="topbar">
           <div className="topbar-title">Arc Testnet · USDC</div>
           <div className="topbar-actions">
+            <BalanceChip />
             <button className="topbar-btn" title="Log out" onClick={() => logout()}>
               <LogoutIcon />
             </button>
