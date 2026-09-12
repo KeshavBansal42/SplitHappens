@@ -1,15 +1,10 @@
 # SplitHappens
 
-Split shared expenses with friends: no seed phrases, no bank transfers, no
-"I'll pay you back next week". Log in with email, create a split, and each
-person pays their share in USDC from a Privy embedded wallet. Funds sit in an
-on-chain escrow on Arc, and are released to the payee **only once every share
-is collected**.
+SplitHappens is a decentralized group-payments application that eliminates the friction of traditional crypto wallets and manual debt collection. It enables users to split shared expenses seamlessly using USDC, combining the programmable speed of on-chain settlement with a familiar user experience.
 
 ## How it works
 
-1. **Log in with email.** Privy creates an embedded wallet for you. No seed
-   phrase is ever shown.
+1. **Log in with email.** Privy creates an embedded wallet for you in the background without ever exposing seed phrases.
 2. **Fund your wallet.** Grab testnet USDC from the faucet linked in the app.
    See [Funding your wallet](#funding-your-wallet).
 3. **Create a split.** Name it, set the total, pick the payee wallet and how
@@ -36,8 +31,11 @@ is collected**.
 
 ## Funding your wallet
 
-> **Fiat on-ramp is deliberately not implemented.** Funding is handled with the
-> [Circle faucet](https://faucet.circle.com/).
+Fiat on-ramp is deliberately not implemented.** Funding is handled with the
+[Circle faucet](https://faucet.circle.com/).
+
+### What is a fiat on-ramp ?
+A fiat on-ramp converts government money (USD, EUR) into crypto (USDC) and delivers it to a wallet address. The user never touches an exchange — they pay by card/bank and USDC appears in their embedded wallet.
 
 ### Why not a fiat on-ramp?
 
@@ -48,8 +46,6 @@ convert fiat straight into a wallet. They don't work for this app:
   Ethereum, Arbitrum, Polygon, Solana, Tempo). **Arc is not one of them.**
 - Stripe's onramp **does not support testnets**, and SplitHappens settles on Arc
   **testnet**.
-- Bridging from a supported chain to Arc (CCTP) is an explicit **non-goal** in
-  the product requirements.
 
 So a fiat on-ramp would need an on-ramp plus bridge hop that the project scopes
 out. On a testnet, the faucet is the funding rail.
@@ -68,7 +64,6 @@ out. On a testnet, the faucet is the funding rail.
 | Seed phrases scare off non-crypto users | Privy embedded wallets: email login, wallet in the background |
 | Group payments need trust | Escrow holds funds until the target is met (conditional, multi-step settlement) |
 | Paying someone back is manual | USDC on Arc testnet: cheap, fast, settled on-chain |
-| Verified humans only (stretch) |  |
 
 ### How Privy is used
 
