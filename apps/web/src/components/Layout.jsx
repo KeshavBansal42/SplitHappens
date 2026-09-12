@@ -102,6 +102,15 @@ export default function Layout() {
         </header>
         <Outlet />
       </main>
+
+      <NavLink
+        to="/profile"
+        className={({ isActive }) => `profile-fab${isActive ? ' active' : ''}`}
+        aria-label="Open profile"
+        title="Profile"
+      >
+        {displayName.slice(0, 2).toUpperCase()}
+      </NavLink>
     </div>
   );
 }

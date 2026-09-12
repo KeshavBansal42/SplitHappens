@@ -19,7 +19,7 @@
   }
 
   .detail-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .split-row {
@@ -43,6 +43,7 @@
 
   .page {
     padding: var(--sp-5);
+    padding-bottom: 6rem;
   }
 
   .stats-grid {

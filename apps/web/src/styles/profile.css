@@ -112,3 +112,23 @@
   font-size: var(--text-xs);
   color: var(--text-secondary);
 }
+
+@media (max-width: 48rem) {
+  .profile-header-card {
+    gap: var(--sp-4);
+  }
+
+  .profile-avatar {
+    width: 3.25rem;
+    height: 3.25rem;
+    font-size: var(--text-lg);
+  }
+
+  .profile-details-card {
+    flex-direction: column;
+  }
+
+  .profile-qr {
+    align-self: center;
+  }
+}

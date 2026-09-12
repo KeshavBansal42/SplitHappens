@@ -175,9 +175,13 @@
 
 .detail-grid {
   display: grid;
-  grid-template-columns: 1fr 23.75rem;
+  grid-template-columns: minmax(0, 1fr) 23.75rem;
   gap: var(--sp-6);
   align-items: start;
+}
+
+.detail-grid > * {
+  min-width: 0;
 }
 
 .detail-summary {
