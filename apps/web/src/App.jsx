@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from './lib/auth.jsx';
 import Layout from './components/Layout';
+import Snackbar from './components/Snackbar';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import CreateSplit from './pages/CreateSplit';
@@ -35,6 +36,7 @@ export default function App() {
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <Snackbar />
     </BrowserRouter>
   );
 }

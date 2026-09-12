@@ -258,3 +258,45 @@
   max-width: 20rem;
   margin-bottom: var(--sp-6);
 }
+
+.snackbar {
+  position: fixed;
+  left: 50%;
+  bottom: var(--sp-6);
+  transform: translateX(-50%);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  max-width: min(28rem, calc(100vw - var(--sp-8)));
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  animation: snackbar-in var(--duration-fast) var(--ease-out);
+}
+
+.snackbar-close {
+  flex-shrink: 0;
+  font-size: var(--text-base);
+  line-height: 1;
+  color: var(--text-muted);
+}
+
+.snackbar-close:hover {
+  color: var(--text-primary);
+}
+
+@keyframes snackbar-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}

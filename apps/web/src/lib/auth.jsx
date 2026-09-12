@@ -1,6 +1,7 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { PrivyProvider as PrivyProviderBase, usePrivy, useIdentityToken } from '@privy-io/react-auth';
-import { configureAuth, IS_DEV_MODE } from './api.js';
+import { configureAuth, IS_DEV_MODE, setUnauthorizedHandler } from './api.js';
+import { showSnackbar } from './snackbar.js';
 import { DEV_EMAIL, DEV_USER_ID, DEV_WALLET, PRIVY_APP_ID } from './env.js';
 import { arcTestnet } from './chain.js';
 
@@ -11,6 +12,18 @@ const DEV_USER = {
   email: DEV_EMAIL || null,
   wallet: DEV_WALLET,
 };
+
+// An expired or rejected session shouldn't strand the user on a broken page:
+// drop them at the login screen and say why.
+function useExpireSession(logout) {
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      showSnackbar('Your session expired. Please log in again.');
+      logout();
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [logout]);
+}
 
 export function AuthProvider({ children }) {
   if (IS_DEV_MODE) {
@@ -46,6 +59,10 @@ export function AuthProvider({ children }) {
 
 function DevAuthProvider({ children }) {
   const [authenticated, setAuthenticated] = useState(true);
+  const login = useCallback(() => setAuthenticated(true), []);
+  const logout = useCallback(() => setAuthenticated(false), []);
+
+  useExpireSession(logout);
 
   const value = useMemo(
     () => ({
@@ -53,13 +70,13 @@ function DevAuthProvider({ children }) {
       authenticated,
       isDev: true,
       user: authenticated ? DEV_USER : null,
-      login: () => setAuthenticated(true),
-      logout: () => setAuthenticated(false),
+      login,
+      logout,
       sendTransaction: async () => {
         throw new Error('Transactions are disabled in dev mode');
       },
     }),
-    [authenticated],
+    [authenticated, login, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -75,6 +92,8 @@ function PrivyAuthBridge({ children }) {
     getAccessToken: () => getAccessToken(),
     getIdentityToken: () => identityToken,
   });
+
+  useExpireSession(logout);
 
   const value = useMemo(() => {
     const email = user?.email?.address ?? null;

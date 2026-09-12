@@ -13,6 +13,13 @@ export function configureAuth(next) {
   tokenGetters = { ...tokenGetters, ...next };
 }
 
+let unauthorizedHandler = null;
+
+// Called when the API rejects our credentials, so the app can log out.
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = handler;
+}
+
 async function authHeaders() {
   const base = { 'Content-Type': 'application/json' };
 
@@ -62,6 +69,9 @@ async function request(method, path, body) {
   }
 
   if (!res.ok) {
+    // Still rejected after the retries: the token is genuinely no good.
+    if (res.status === 401) unauthorizedHandler?.();
+
     const err = new Error(json?.error?.message || 'Request failed');
     err.status = res.status;
     err.code = json?.error?.code;
