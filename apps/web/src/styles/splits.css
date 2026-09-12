@@ -129,15 +129,6 @@
   font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
-
-.participant-you-tag {
-  font-size: 0.625rem;
-  color: var(--accent);
-  font-weight: 600;
 }
 
 .participant-address {

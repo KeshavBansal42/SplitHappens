@@ -312,7 +312,6 @@ export default function SplitDetail() {
                   <div className="participant-info">
                     <div className="participant-name">
                       {p.isCurrentUser ? 'You' : p.name}
-                      {p.isCurrentUser && <span className="participant-you-tag">YOU</span>}
                     </div>
                     <div className="participant-address">{p.address}</div>
                   </div>
