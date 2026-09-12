@@ -6,12 +6,11 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import CreateSplit from './pages/CreateSplit';
 import SplitDetail from './pages/SplitDetail';
+import ProfilePage from './pages/ProfilePage';
 
 function RequireAuth() {
   const { ready, authenticated, tokenReady } = useAuth();
 
-  // Hold on loading until Privy has actually minted a token, so the first
-  // page load doesn't fire API calls the backend has to reject.
   if (!ready || (authenticated && !tokenReady)) {
     return (
       <div className="login-page">
@@ -34,6 +33,7 @@ export default function App() {
             <Route path="/create" element={<CreateSplit />} />
             <Route path="/splits/:id" element={<SplitDetail />} />
             <Route path="/splits" element={<Dashboard />} />
+            <Route path="/profile" element={<ProfilePage />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
