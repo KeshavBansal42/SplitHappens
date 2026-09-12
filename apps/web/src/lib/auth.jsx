@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { PrivyProvider as PrivyProviderBase, usePrivy, useIdentityToken } from '@privy-io/react-auth';
 import { configureAuth, IS_DEV_MODE } from './api.js';
 import { DEV_EMAIL, DEV_USER_ID, DEV_WALLET, PRIVY_APP_ID } from './env.js';
@@ -14,23 +14,7 @@ const DEV_USER = {
 
 export function AuthProvider({ children }) {
   if (IS_DEV_MODE) {
-    return (
-      <AuthContext.Provider
-        value={{
-          ready: true,
-          authenticated: true,
-          isDev: true,
-          user: DEV_USER,
-          login: () => {},
-          logout: () => {},
-          sendTransaction: async () => {
-            throw new Error('Transactions are disabled in dev mode');
-          },
-        }}
-      >
-        {children}
-      </AuthContext.Provider>
-    );
+    return <DevAuthProvider>{children}</DevAuthProvider>;
   }
 
   if (!PRIVY_APP_ID) {
@@ -58,6 +42,27 @@ export function AuthProvider({ children }) {
       <PrivyAuthBridge>{children}</PrivyAuthBridge>
     </PrivyProviderBase>
   );
+}
+
+function DevAuthProvider({ children }) {
+  const [authenticated, setAuthenticated] = useState(true);
+
+  const value = useMemo(
+    () => ({
+      ready: true,
+      authenticated,
+      isDev: true,
+      user: authenticated ? DEV_USER : null,
+      login: () => setAuthenticated(true),
+      logout: () => setAuthenticated(false),
+      sendTransaction: async () => {
+        throw new Error('Transactions are disabled in dev mode');
+      },
+    }),
+    [authenticated],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 function PrivyAuthBridge({ children }) {
