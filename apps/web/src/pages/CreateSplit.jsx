@@ -21,10 +21,10 @@ function parseWalletQr(text) {
 export default function CreateSplit() {
   const navigate = useNavigate();
   const pageRef = useRef(null);
-  const { user, isDev, sendTransaction } = useAuth();
+  const { isDev, sendTransaction } = useAuth();
   const [title, setTitle] = useState('');
   const [totalAmount, setTotalAmount] = useState('');
-  const [payeeAddress, setPayeeAddress] = useState(user?.wallet || '');
+  const [payeeAddress, setPayeeAddress] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
   const [invites, setInvites] = useState([{ email: '' }]);
   const [submitting, setSubmitting] = useState(false);
