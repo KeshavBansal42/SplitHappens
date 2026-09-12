@@ -11,6 +11,24 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // If the bundle never runs (e.g. not a secure context, so WebCrypto is
+      // missing) the page would just be blank. Say so instead.
+      setTimeout(function () {
+        var root = document.getElementById('root');
+        if (window.__splithappensMounted || !root || root.childElementCount) return;
+        root.innerHTML =
+          '<div style="max-width:34rem;margin:4rem auto;padding:1.5rem;' +
+          'font-family:monospace;color:#FAFAFA;background:#1A1A1A;' +
+          'border:1px solid rgba(255,255,255,.08);border-radius:.5rem;line-height:1.6">' +
+          '<strong>splitHappens could not start.</strong><br><br>' +
+          'This usually means the page is not served over HTTPS. ' +
+          'Embedded wallets need a secure context, and browsers only treat ' +
+          'localhost or HTTPS as secure.<br><br>' +
+          'Open the browser console for the underlying error.' +
+          '</div>';
+      }, 6000);
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

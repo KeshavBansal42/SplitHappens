@@ -233,7 +233,7 @@ export default function Dashboard() {
 
 function StatCard({ label, value, accent }) {
   return (
-    <div className="stat-card" style={{ opacity: 0 }}>
+    <div className="stat-card">
       <span className="stat-label">{label}</span>
       <span className="stat-value" style={accent ? { color: 'var(--accent)' } : undefined}>
         {value}

@@ -279,7 +279,7 @@ export default function SplitDetail() {
 
       <div className="detail-grid">
         <div className="detail-summary">
-          <div className="detail-amount-display" style={{ opacity: 0 }}>
+          <div className="detail-amount-display">
             <div className="detail-amount-label">Total Amount</div>
             <div className="detail-amount-value">${split.totalAmount.toLocaleString()}</div>
             <div className="detail-amount-sub">
@@ -297,23 +297,23 @@ export default function SplitDetail() {
               Split Details
             </h3>
             <div className="detail-info-grid">
-              <div className="detail-info-item" style={{ opacity: 0 }}>
+              <div className="detail-info-item">
                 <span className="detail-info-label">Payee Address</span>
                 <span className="detail-info-value" style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', wordBreak: 'break-all' }}>
                   {split.payeeAddress}
                 </span>
               </div>
-              <div className="detail-info-item" style={{ opacity: 0 }}>
+              <div className="detail-info-item">
                 <span className="detail-info-label">Participants</span>
                 <span className="detail-info-value">
                   {split.participants.length} / {split.participantCount}
                 </span>
               </div>
-              <div className="detail-info-item" style={{ opacity: 0 }}>
+              <div className="detail-info-item">
                 <span className="detail-info-label">Network</span>
                 <span className="detail-info-value">Arc Testnet</span>
               </div>
-              <div className="detail-info-item" style={{ opacity: 0 }}>
+              <div className="detail-info-item">
                 <span className="detail-info-label">Currency</span>
                 <span className="detail-info-value">USDC</span>
               </div>
@@ -331,7 +331,7 @@ export default function SplitDetail() {
             )}
             <div className="participant-list">
               {split.participants.map((p) => (
-                <div key={p.id} className="participant-row" style={{ opacity: 0 }}>
+                <div key={p.id} className="participant-row">
                   <div className="participant-avatar">{p.avatar}</div>
                   <div className="participant-info">
                     <div className="participant-name">
@@ -367,7 +367,7 @@ export default function SplitDetail() {
           </div>
 
           {!split.opened && isCreator && (
-            <div className="pay-cta" style={{ opacity: 0 }}>
+            <div className="pay-cta">
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 Finish Setup
               </div>
@@ -401,7 +401,7 @@ export default function SplitDetail() {
           )}
 
           {split.opened && !split.me && split.status !== 'released' && (
-            <div className="pay-cta" style={{ opacity: 0 }}>
+            <div className="pay-cta">
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 Join Split
               </div>
@@ -415,7 +415,7 @@ export default function SplitDetail() {
           )}
 
           {split.opened && split.me && (
-            <div className="pay-cta" style={{ opacity: 0 }}>
+            <div className="pay-cta">
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 Your Share
               </div>
@@ -449,7 +449,7 @@ export default function SplitDetail() {
           )}
 
           {canRelease && (
-            <div className="pay-cta" style={{ opacity: 0 }}>
+            <div className="pay-cta">
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 Fully Funded
               </div>

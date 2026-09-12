@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { animate, stagger } from 'animejs';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../lib/auth.jsx';
+import { useUsdcBalance } from '../lib/useUsdcBalance.js';
 
 export default function ProfilePage() {
   const pageRef = useRef(null);
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
+  const { state: balance, refresh } = useUsdcBalance(user?.wallet || null);
 
   const wallet = user?.wallet || null;
   const email = user?.email || null;
@@ -74,6 +76,39 @@ export default function ProfilePage() {
               </button>
             </div>
           </div>
+
+          <div className="profile-field">
+            <span className="profile-field-label">USDC Balance</span>
+            <div className="profile-field-value">
+              {balance.status === 'loading' && (
+                <span className="profile-wallet">Checking…</span>
+              )}
+              {balance.status === 'ok' && (
+                <span className="profile-balance">{balance.amount} USDC</span>
+              )}
+              {balance.status === 'unavailable' &&
+                balance.reason === 'no-usdc-address' && (
+                  <span className="profile-wallet">USDC address not configured</span>
+                )}
+              {balance.status === 'unavailable' &&
+                balance.reason === 'not-connected' && (
+                  <span className="profile-wallet">No wallet connected</span>
+                )}
+              {balance.status === 'error' && (
+                <span className="profile-wallet">{balance.message}</span>
+              )}
+              {wallet && balance.status !== 'unavailable' && (
+                <button
+                  type="button"
+                  className="wallet-copy"
+                  onClick={refresh}
+                  title="Refresh balance"
+                >
+                  <RefreshIcon />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="profile-qr">
@@ -114,6 +149,15 @@ function CheckIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 4 23 10 17 10" />
+      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
     </svg>
   );
 }
