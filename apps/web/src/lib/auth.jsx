@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { PrivyProvider as PrivyProviderBase, usePrivy, useIdentityToken } from '@privy-io/react-auth';
+import { PrivyProvider as PrivyProviderBase, usePrivy } from '@privy-io/react-auth';
 import { configureAuth, IS_DEV_MODE, setUnauthorizedHandler } from './api.js';
 import { showSnackbar } from './snackbar.js';
 import { DEV_EMAIL, DEV_USER_ID, DEV_WALLET, PRIVY_APP_ID } from './env.js';
@@ -85,14 +85,12 @@ function DevAuthProvider({ children }) {
 
 function PrivyAuthBridge({ children }) {
   const { ready, authenticated, login, logout, user, getAccessToken, sendTransaction } = usePrivy();
-  const { identityToken } = useIdentityToken();
   const [tokenReady, setTokenReady] = useState(false);
 
   // Set during render, not in an effect: child effects run before parent
   // effects, so a page fetching on mount would otherwise fire with no token.
   configureAuth({
     getAccessToken: () => getAccessToken(),
-    getIdentityToken: () => identityToken,
   });
 
   useExpireSession(logout);
