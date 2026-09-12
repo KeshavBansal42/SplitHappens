@@ -25,52 +25,56 @@ async function authHeaders() {
 
   if (DEV_MODE) {
     return {
-      ...base,
-      'x-dev-user-id': DEV_USER_ID,
-      'x-dev-wallet': DEV_WALLET,
-      ...(DEV_EMAIL ? { 'x-dev-email': DEV_EMAIL } : {}),
+      headers: {
+        ...base,
+        'x-dev-user-id': DEV_USER_ID,
+        'x-dev-wallet': DEV_WALLET,
+        ...(DEV_EMAIL ? { 'x-dev-email': DEV_EMAIL } : {}),
+      },
+      hasToken: true,
     };
   }
 
-  const [accessToken, identityToken] = [
-    await tokenGetters.getAccessToken(),
-    tokenGetters.getIdentityToken(),
-  ];
+  const accessToken = await tokenGetters.getAccessToken();
+  const identityToken = tokenGetters.getIdentityToken();
 
   return {
-    ...base,
-    ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
-    ...(identityToken ? { 'x-privy-id-token': identityToken } : {}),
+    headers: {
+      ...base,
+      ...(accessToken ? { authorization: `Bearer ${accessToken}` } : {}),
+      ...(identityToken ? { 'x-privy-id-token': identityToken } : {}),
+    },
+    hasToken: Boolean(accessToken),
   };
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function send(method, path, body) {
+  const { headers, hasToken } = await authHeaders();
   const res = await fetch(path, {
     method,
-    headers: await authHeaders(),
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const json = await res.json().catch(() => null);
-  return { res, json };
+  return { res, json, hasToken };
 }
 
 async function request(method, path, body) {
-  let { res, json } = await send(method, path, body);
+  let { res, json, hasToken } = await send(method, path, body);
 
-  // Right after login Privy may still be minting the token, which comes back
-  // as a 401. Give it a moment and try again before surfacing an error.
-  if (res.status === 401 && !DEV_MODE) {
-    for (let attempt = 0; attempt < 3 && res.status === 401; attempt++) {
-      await sleep(300 * (attempt + 1));
-      ({ res, json } = await send(method, path, body));
-    }
+  // Privy reports "authenticated" a moment before the access token exists, so
+  // the first calls can go out bare. Wait for a token and try again.
+  for (let attempt = 0; attempt < 6 && res.status === 401 && !DEV_MODE; attempt++) {
+    await sleep(attempt === 0 && hasToken ? 300 * (attempt + 1) : 250 * (attempt + 1));
+    ({ res, json, hasToken } = await send(method, path, body));
   }
 
   if (!res.ok) {
-    // Still rejected after the retries: the token is genuinely no good.
-    if (res.status === 401) unauthorizedHandler?.();
+    // Only treat this as a dead session if we actually presented credentials.
+    // A 401 with no token just means Privy isn't ready yet.
+    if (res.status === 401 && hasToken) unauthorizedHandler?.();
 
     const err = new Error(json?.error?.message || 'Request failed');
     err.status = res.status;

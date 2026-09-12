@@ -68,6 +68,7 @@ function DevAuthProvider({ children }) {
     () => ({
       ready: true,
       authenticated,
+      tokenReady: true,
       isDev: true,
       user: authenticated ? DEV_USER : null,
       login,
@@ -85,6 +86,7 @@ function DevAuthProvider({ children }) {
 function PrivyAuthBridge({ children }) {
   const { ready, authenticated, login, logout, user, getAccessToken, sendTransaction } = usePrivy();
   const { identityToken } = useIdentityToken();
+  const [tokenReady, setTokenReady] = useState(false);
 
   // Set during render, not in an effect: child effects run before parent
   // effects, so a page fetching on mount would otherwise fire with no token.
@@ -95,12 +97,49 @@ function PrivyAuthBridge({ children }) {
 
   useExpireSession(logout);
 
+  // Privy flips `authenticated` before the access token is minted. Hold the
+  // app back until it exists, otherwise the first calls 401 and we log out.
+  useEffect(() => {
+    if (!authenticated) {
+      setTokenReady(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    let timer;
+    let attempts = 0;
+
+    const check = async () => {
+      const token = await getAccessToken().catch(() => null);
+      if (cancelled) return;
+      if (token) {
+        setTokenReady(true);
+        return;
+      }
+      // Give up after ~10s so a dead session can't hang the app forever;
+      // the API layer then surfaces the failure without force-logging-out.
+      attempts += 1;
+      if (attempts >= 40) {
+        setTokenReady(true);
+        return;
+      }
+      timer = setTimeout(check, 250);
+    };
+
+    check();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [authenticated, getAccessToken]);
+
   const value = useMemo(() => {
     const email = user?.email?.address ?? null;
     const wallet = user?.wallet?.address ?? null;
     return {
       ready,
       authenticated,
+      tokenReady: authenticated ? tokenReady : false,
       isDev: false,
       login,
       logout,
@@ -111,7 +150,7 @@ function PrivyAuthBridge({ children }) {
         wallet,
       },
     };
-  }, [ready, authenticated, login, logout, sendTransaction, user]);
+  }, [ready, authenticated, tokenReady, login, logout, sendTransaction, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

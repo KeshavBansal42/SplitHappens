@@ -8,9 +8,11 @@ import CreateSplit from './pages/CreateSplit';
 import SplitDetail from './pages/SplitDetail';
 
 function RequireAuth() {
-  const { ready, authenticated } = useAuth();
+  const { ready, authenticated, tokenReady } = useAuth();
 
-  if (!ready) {
+  // Hold on loading until Privy has actually minted a token, so the first
+  // page load doesn't fire API calls the backend has to reject.
+  if (!ready || (authenticated && !tokenReady)) {
     return (
       <div className="login-page">
         <p className="login-footer">Loading…</p>
