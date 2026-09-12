@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { animate, stagger, createTimeline } from 'animejs';
 import { api } from '../lib/api.js';
+import { showSnackbar } from '../lib/snackbar.js';
 import { adaptSplitList, computeStats } from '../lib/transform.js';
 
 const statusLabels = {
@@ -24,25 +25,45 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [mine, invites] = await Promise.all([
-          api.getMySplits(),
-          api.getInvitedSplits(),
-        ]);
-        const adapted = adaptSplitList(mine.splits);
-        setSplits(adapted);
-        setStats(computeStats(adapted));
-        setInvited(adaptSplitList(invites.splits));
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
+  const load = useCallback(async () => {
+    try {
+      const [mine, invites] = await Promise.all([
+        api.getMySplits(),
+        api.getInvitedSplits(),
+      ]);
+      const adapted = adaptSplitList(mine.splits);
+      setSplits(adapted);
+      setStats(computeStats(adapted));
+      setInvited(adaptSplitList(invites.splits));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    load();
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Only the creator of a split that was never opened may cancel it.
+  const handleCancel = async (event, split) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const ok = window.confirm(
+      `Cancel "${split.title}"? Nothing is on-chain yet, so it will just be deleted.`,
+    );
+    if (!ok) return;
+
+    try {
+      await api.cancelSplit(split.id);
+      showSnackbar('Split cancelled');
+      await load();
+    } catch (err) {
+      showSnackbar(err.message);
+    }
+  };
 
   useEffect(() => {
     if (loading) return;
@@ -191,7 +212,17 @@ export default function Dashboard() {
                 <span className="badge-dot" />
                 {statusLabels[split.status]}
               </span>
-              <span className="split-date">{split.createdAt}</span>
+              {split.isCreator && !split.opened ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={(e) => handleCancel(e, split)}
+                >
+                  Cancel
+                </button>
+              ) : (
+                <span className="split-date">{split.createdAt}</span>
+              )}
             </Link>
           ))
         )}

@@ -40,21 +40,22 @@ export default function SplitDetail() {
   const [paying, setPaying] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // Read the user through a ref so loadSplit stays stable for the life of
+  // the page — otherwise every auth re-render tears down the poll timer.
+  const userRef = useRef(user);
+  userRef.current = user;
+
   const loadSplit = useCallback(async () => {
     try {
       const data = await api.getSplitStatus(id);
-      setSplit(adaptStatus(data, user));
+      setSplit(adaptStatus(data, userRef.current));
       setError(null);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [id, user]);
-
-  useEffect(() => {
-    loadSplit();
-  }, [loadSplit]);
+  }, [id]);
 
   useEffect(() => {
     if (loading || !split) return;
@@ -81,11 +82,20 @@ export default function SplitDetail() {
     }, '-=300');
   }, [loading]);
 
+  // One stable poll for the page, plus a refresh whenever the tab wakes up,
+  // so a payment shows up without a manual reload.
   useEffect(() => {
-    if (!split) return;
-    const t = setInterval(() => void loadSplit(), POLL_MS);
-    return () => clearInterval(t);
-  }, [split, loadSplit]);
+    const refresh = () => void loadSplit();
+    refresh();
+    const t = setInterval(refresh, POLL_MS);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      clearInterval(t);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [loadSplit]);
 
   const signTx = async (to, data) => {
     const receipt = await sendTransaction({ to, data, chainId: CHAIN_ID });

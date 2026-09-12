@@ -60,6 +60,7 @@ export function mapInvite(row: SplitInviteRow): SplitInvite {
 export function mapSplitSummary(
   split: SummarySplit,
   myShareAmount?: Prisma.Decimal | null,
+  viewerId?: string,
 ): SplitSummary {
   const paid = (split.participants ?? []).filter((p) => p.paid);
   let paidUnits = 0n;
@@ -76,6 +77,7 @@ export function mapSplitSummary(
     paidAmount: unitsToAmount(paidUnits),
     paidCount: paid.length,
     myShareAmount: myShareAmount ? decimalToAmount(myShareAmount) : null,
+    isCreator: split.creatorId === viewerId,
     createdAt: split.createdAt.toISOString(),
   };
 }

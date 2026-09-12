@@ -126,6 +126,7 @@ export const splitSummarySchema = z.object({
   paidAmount: z.string(),
   paidCount: z.number().int(),
   myShareAmount: z.string().nullable(),
+  isCreator: z.boolean(),
   createdAt: dateTimeSchema,
 });
 

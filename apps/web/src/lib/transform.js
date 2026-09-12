@@ -39,6 +39,7 @@ export function adaptSummary(s) {
     status: s.status,
     participantCount: s.participantCount,
     opened: s.opened,
+    isCreator: Boolean(s.isCreator),
     createdAt: (s.createdAt || '').split('T')[0],
     myShareAmount:
       s.myShareAmount === null || s.myShareAmount === undefined

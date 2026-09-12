@@ -77,7 +77,7 @@ export function splitsRouter(): Router {
       const body = invitedSplitsResponseSchema.parse({
         viewerId: user.id,
         splits: invites.map((invite) =>
-          mapSplitSummary(invite.split, invite.shareAmount),
+          mapSplitSummary(invite.split, invite.shareAmount, user.id),
         ),
       });
       res.json(body);
@@ -93,7 +93,7 @@ export function splitsRouter(): Router {
       const body = mySplitsResponseSchema.parse({
         viewerId: user.id,
         splits: splits.map(({ split, shareAmount }) =>
-          mapSplitSummary(split, shareAmount),
+          mapSplitSummary(split, shareAmount, user.id),
         ),
       });
       res.json(body);
