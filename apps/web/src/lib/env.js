@@ -1,14 +1,23 @@
-export const PRIVY_APP_ID = import.meta.env.VITE_PRIVY_APP_ID;
+const runtimeConfig =
+  (typeof window !== 'undefined' && window.__SPLITHAPPENS_CONFIG__) || {};
 
-export const ARC_RPC_URL =
-  import.meta.env.VITE_ARC_RPC_URL || 'https://rpc.testnet.arc.network';
+function read(key, fallback) {
+  return runtimeConfig[key] || import.meta.env[key] || fallback;
+}
 
-export const USDC_ADDRESS = import.meta.env.VITE_USDC_ADDRESS;
+export const PRIVY_APP_ID = read('VITE_PRIVY_APP_ID');
 
-export const ESCROW_ADDRESS = import.meta.env.VITE_ESCROW_ADDRESS;
+export const ARC_RPC_URL = read(
+  'VITE_ARC_RPC_URL',
+  'https://rpc.testnet.arc.network'
+);
+
+export const USDC_ADDRESS = read('VITE_USDC_ADDRESS');
+
+export const ESCROW_ADDRESS = read('VITE_ESCROW_ADDRESS');
 
 // Optional escape hatch for local API work: when both are set the app talks
 // to an AUTH_MODE=dev backend with header auth instead of Privy tokens.
-export const DEV_USER_ID = import.meta.env.VITE_DEV_USER_ID;
-export const DEV_WALLET = import.meta.env.VITE_DEV_WALLET;
-export const DEV_EMAIL = import.meta.env.VITE_DEV_EMAIL;
+export const DEV_USER_ID = read('VITE_DEV_USER_ID');
+export const DEV_WALLET = read('VITE_DEV_WALLET');
+export const DEV_EMAIL = read('VITE_DEV_EMAIL');

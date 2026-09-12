@@ -1,0 +1,1 @@
+window.__SPLITHAPPENS_CONFIG__ = window.__SPLITHAPPENS_CONFIG__ || {};

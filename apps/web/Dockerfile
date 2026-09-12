@@ -22,6 +22,10 @@ RUN pnpm install --frozen-lockfile --filter "@splithappens/web..."
 RUN pnpm --filter "@splithappens/web..." build
 
 FROM nginx:1.27-alpine
-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+ENV PORT=80 \
+    API_UPSTREAM=http://api:4000
+COPY apps/web/nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY apps/web/docker-entrypoint.d/40-runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
+RUN chmod +x /docker-entrypoint.d/40-runtime-config.sh
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
