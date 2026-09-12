@@ -1,5 +1,6 @@
 process.env.NODE_ENV = "test";
 process.env.DATABASE_URL =
+  process.env.TEST_DATABASE_URL ??
   "postgresql://splithappens:splithappens@127.0.0.1:5433/splithappens_test";
 process.env.AUTH_MODE = "dev";
 process.env.USDC_ADDRESS = "0x1111111111111111111111111111111111111111";

@@ -53,7 +53,10 @@ export function statusRouter(): Router {
           released: onChain.released,
         },
         participants: split.participants.map(mapParticipant),
-        invites: split.invites.map(mapInvite),
+        invites:
+          split.creatorId === req.user!.id
+            ? split.invites.map(mapInvite)
+            : [],
       });
       res.json(body);
     } catch (err) {
