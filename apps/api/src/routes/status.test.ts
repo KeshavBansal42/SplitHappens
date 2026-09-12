@@ -105,3 +105,79 @@ describe("GET /api/v1/splits/:id/status", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("invite visibility on split status", () => {
+  const BOB_WALLET = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+  beforeEach(() => {
+    db.user.clear();
+    db.split.clear();
+    db.splitParticipant.clear();
+    db.splitInvite.clear();
+    setEscrowStatus({ collected: 0n, target: 0n, released: false });
+  });
+
+  function seed() {
+    db.user.seed([
+      {
+        id: "u_alice",
+        privyUserId: "dev:alice",
+        email: "alice@example.com",
+        walletAddress: WALLET,
+        verifiedHuman: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as unknown as Row,
+    ]);
+    db.split.seed([
+      {
+        id: 1n,
+        title: "Dinner",
+        totalAmount: decimal("120.00"),
+        payeeAddress: WALLET,
+        requireVerification: false,
+        participantCount: 3,
+        creatorId: "u_alice",
+        openedAt: new Date(),
+        openTxHash: null,
+        status: "PENDING",
+        releaseTxHash: null,
+        releasedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        participants: [],
+        invites: [
+          {
+            id: "inv_1",
+            splitId: 1n,
+            email: "carol@example.com",
+            shareAmount: decimal("40"),
+            claimedByUserId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+      } as unknown as Row,
+    ]);
+  }
+
+  it("shows invites to the creator", async () => {
+    seed();
+    const res = await request(app)
+      .get("/api/v1/splits/1/status")
+      .set({ "x-dev-user-id": "alice", "x-dev-wallet": WALLET });
+
+    expect(res.status).toBe(200);
+    expect(res.body.invites).toHaveLength(1);
+  });
+
+  it("hides invites from everyone else", async () => {
+    seed();
+    const res = await request(app)
+      .get("/api/v1/splits/1/status")
+      .set({ "x-dev-user-id": "bob", "x-dev-wallet": BOB_WALLET });
+
+    expect(res.status).toBe(200);
+    expect(res.body.invites).toEqual([]);
+  });
+});

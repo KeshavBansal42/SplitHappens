@@ -227,9 +227,12 @@ export default function SplitDetail() {
     : 0;
   const myShare = split.me?.shareAmount || 0;
   const myPaid = split.me?.paid || false;
-  const pendingInvites = split.invites.filter((i) => !i.claimed);
   const canRelease = split.opened && split.fullyFunded && !split.onChainReleased;
   const isCreator = Boolean(split.me && split.creatorId === split.me.userId);
+  // The invite list is the creator's business only.
+  const pendingInvites = isCreator
+    ? split.invites.filter((i) => !i.claimed)
+    : [];
 
   return (
     <div className="page" ref={pageRef}>

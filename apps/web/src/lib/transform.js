@@ -9,11 +9,13 @@ export function deriveAvatar(name) {
 }
 
 export function adaptParticipant(p, currentUser) {
-  const name = deriveName(null, p.userId);
+  // Prefer the email so people are identifiable, not a database id.
+  const name = p.email || deriveName(null, p.userId);
   const wallet = currentUser?.wallet?.toLowerCase() || '';
   return {
     id: p.id,
     userId: p.userId,
+    email: p.email || null,
     name,
     avatar: deriveAvatar(name),
     address: p.walletAddress || 'Not connected',

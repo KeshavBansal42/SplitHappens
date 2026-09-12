@@ -248,3 +248,121 @@ describe("GET /api/v1/splits/mine", () => {
     expect(res.body.splits[0]).toMatchObject({ id: "7", title: "Rent", opened: false });
   });
 });
+
+describe("GET /api/v1/splits/:id", () => {
+  const BOB_WALLET = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+  beforeEach(() => {
+    db.user.clear();
+    db.split.clear();
+    db.splitParticipant.clear();
+    db.splitInvite.clear();
+  });
+
+  function seedSplitWithPeople() {
+    const user = (id: string, privyUserId: string, email: string, wallet: string) => ({
+      id,
+      privyUserId,
+      email,
+      walletAddress: wallet,
+      verifiedHuman: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    db.user.seed([
+      user("u_alice", "dev:alice", "alice@example.com", WALLET),
+      user("u_bob", "dev:bob", "bob@example.com", BOB_WALLET),
+    ]);
+
+    db.split.seed([
+      {
+        id: 1n,
+        title: "Dinner",
+        totalAmount: decimal("120"),
+        payeeAddress: WALLET,
+        requireVerification: false,
+        participantCount: 3,
+        creatorId: "u_alice",
+        openedAt: new Date(),
+        openTxHash: null,
+        status: "PENDING",
+        releaseTxHash: null,
+        releasedAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        participants: [
+          {
+            id: "p_1",
+            splitId: 1n,
+            userId: "u_alice",
+            shareAmount: decimal("40"),
+            paid: false,
+            txHash: null,
+            confirmedAt: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            user: user("u_alice", "dev:alice", "alice@example.com", WALLET),
+          },
+          {
+            id: "p_2",
+            splitId: 1n,
+            userId: "u_bob",
+            shareAmount: decimal("40"),
+            paid: false,
+            txHash: null,
+            confirmedAt: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            user: user("u_bob", "dev:bob", "bob@example.com", BOB_WALLET),
+          },
+        ],
+        invites: [
+          {
+            id: "inv_1",
+            splitId: 1n,
+            email: "carol@example.com",
+            shareAmount: decimal("40"),
+            claimedByUserId: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+      } as unknown as Row,
+    ]);
+  }
+
+  it("exposes participant emails", async () => {
+    seedSplitWithPeople();
+
+    const res = await request(app).get("/api/v1/splits/1").set(devHeaders("alice"));
+
+    expect(res.status).toBe(200);
+    expect(res.body.participants.map((p: { email: string }) => p.email)).toEqual([
+      "alice@example.com",
+      "bob@example.com",
+    ]);
+  });
+
+  it("shows the invite list to the creator", async () => {
+    seedSplitWithPeople();
+
+    const res = await request(app).get("/api/v1/splits/1").set(devHeaders("alice"));
+
+    expect(res.body.invites).toHaveLength(1);
+    expect(res.body.invites[0].email).toBe("carol@example.com");
+  });
+
+  it("hides the invite list from other participants", async () => {
+    seedSplitWithPeople();
+
+    const res = await request(app)
+      .get("/api/v1/splits/1")
+      .set({ "x-dev-user-id": "bob", "x-dev-wallet": BOB_WALLET });
+
+    expect(res.status).toBe(200);
+    expect(res.body.invites).toEqual([]);
+    // they can still see who is actually in the split
+    expect(res.body.participants).toHaveLength(2);
+  });
+});

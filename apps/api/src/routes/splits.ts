@@ -58,7 +58,7 @@ export function splitsRouter(): Router {
         requireVerification: input.requireVerification ?? false,
       });
 
-      const body = createSplitResponseSchema.parse(mapSplitDetail(split));
+      const body = createSplitResponseSchema.parse(mapSplitDetail(split, user.id));
       res.status(201).json(body);
     } catch (err) {
       next(err);
@@ -104,8 +104,9 @@ export function splitsRouter(): Router {
   router.get("/:id", async (req, res, next) => {
     try {
       const id = parseId(req.params.id);
+      const user = req.user!;
       const split = await getSplitOrThrow(id);
-      res.json(getSplitResponseSchema.parse(mapSplitDetail(split)));
+      res.json(getSplitResponseSchema.parse(mapSplitDetail(split, user.id)));
     } catch (err) {
       next(err);
     }
@@ -123,7 +124,7 @@ export function splitsRouter(): Router {
       }
 
       const split = await markSplitOpened(id, input.txHash);
-      res.json(getSplitResponseSchema.parse(mapSplitDetail(split)));
+      res.json(getSplitResponseSchema.parse(mapSplitDetail(split, user.id)));
     } catch (err) {
       next(err);
     }
@@ -136,7 +137,7 @@ export function splitsRouter(): Router {
       const user = req.user!;
 
       const split = await addInvites(id, user.id, input.emails);
-      res.json(getSplitResponseSchema.parse(mapSplitDetail(split)));
+      res.json(getSplitResponseSchema.parse(mapSplitDetail(split, user.id)));
     } catch (err) {
       next(err);
     }

@@ -37,6 +37,7 @@ export const emailSchema = z
 export const participantSchema = z.object({
   id: z.string(),
   userId: z.string(),
+  email: z.string().nullable(),
   walletAddress: z.string().nullable(),
   shareAmount: z.string(),
   paid: z.boolean(),

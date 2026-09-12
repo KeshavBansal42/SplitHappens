@@ -39,6 +39,7 @@ export function mapParticipant(row: SplitParticipantRow): Participant {
   return {
     id: row.id,
     userId: row.userId,
+    email: row.user.email ?? null,
     walletAddress: row.user.walletAddress,
     shareAmount: decimalToAmount(row.shareAmount),
     paid: row.paid,
@@ -79,7 +80,13 @@ export function mapSplitSummary(
   };
 }
 
-export function mapSplitDetail(split: SplitWithParticipants): SplitDetail {
+export function mapSplitDetail(
+  split: SplitWithParticipants,
+  viewerId?: string,
+): SplitDetail {
+  // Only the creator gets to see who has been invited.
+  const includeInvites = split.creatorId === viewerId;
+
   return {
     id: split.id.toString(),
     title: split.title,
@@ -95,6 +102,6 @@ export function mapSplitDetail(split: SplitWithParticipants): SplitDetail {
     releasedAt: split.releasedAt?.toISOString() ?? null,
     createdAt: split.createdAt.toISOString(),
     participants: split.participants.map(mapParticipant),
-    invites: split.invites.map(mapInvite),
+    invites: includeInvites ? split.invites.map(mapInvite) : [],
   };
 }
