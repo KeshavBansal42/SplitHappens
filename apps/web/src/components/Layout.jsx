@@ -64,22 +64,29 @@ export default function Layout() {
 
         <div className="sidebar-footer">
           <div className="sidebar-user">
-            <div className="sidebar-avatar">{displayName.slice(0, 2).toUpperCase()}</div>
-            <div className="sidebar-user-info">
-              <div className="sidebar-user-name">{displayName}</div>
-              <button
-                type="button"
-                className="wallet-copy"
-                onClick={copyWallet}
-                disabled={!wallet}
-                title={wallet ? `Copy ${wallet}` : 'No wallet connected'}
-              >
-                <span className="sidebar-user-address">
-                  {copied ? 'Copied!' : shortAddress}
-                </span>
-                {wallet && <CopyIcon />}
-              </button>
-            </div>
+            <NavLink
+              to="/profile"
+              className={({ isActive }) =>
+                `sidebar-user-link${isActive ? ' active' : ''}`
+              }
+              title="View profile"
+            >
+              <div className="sidebar-avatar">{displayName.slice(0, 2).toUpperCase()}</div>
+              <div className="sidebar-user-info">
+                <div className="sidebar-user-name">{displayName}</div>
+                <div className="sidebar-user-address">{shortAddress}</div>
+              </div>
+            </NavLink>
+            <button
+              type="button"
+              className="wallet-copy"
+              onClick={copyWallet}
+              disabled={!wallet}
+              title={wallet ? `Copy ${wallet}` : 'No wallet connected'}
+              aria-label="Copy wallet address"
+            >
+              {copied ? <CheckIcon /> : <CopyIcon />}
+            </button>
           </div>
         </div>
       </aside>
@@ -152,6 +159,14 @@ function CopyIcon() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <rect x="9" y="9" width="13" height="13" rx="2" />
       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
     </svg>
   );
 }
