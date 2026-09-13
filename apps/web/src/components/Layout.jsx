@@ -38,7 +38,7 @@ export default function Layout() {
     <div className="app-layout">
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <img className="sidebar-logo-icon" src="../../public/logo.jpeg" alt="" />
+          <img className="sidebar-logo-icon" src="/logo.jpg" alt="" />
           <span className="sidebar-logo-text">splitHappens</span>
         </div>
 

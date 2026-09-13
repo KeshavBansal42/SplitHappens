@@ -55,7 +55,7 @@ export default function Login() {
       <div className="login-bg-glow glow-2" />
 
       <div className="login-card">
-        <img className="login-logo" src="../../public/logo.jpeg" alt="" />
+        <img className="login-logo" src="/logo.jpg" alt="" />
         <h1 className="login-title">splitHappens</h1>
         <p className="login-subtitle">
           Group payments, settled on-chain. No seed phrases.
