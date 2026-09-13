@@ -32,12 +32,8 @@
   height: 2rem;
   border-radius: var(--radius-sm);
   background: var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: var(--text-sm);
-  color: var(--text-inverse);
+  display: block;
+  object-fit: cover;
   flex-shrink: 0;
 }
 

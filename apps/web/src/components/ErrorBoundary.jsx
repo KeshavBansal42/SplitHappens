@@ -23,7 +23,7 @@ export default class ErrorBoundary extends Component {
       return (
         <div className="login-page">
           <div className="login-card">
-            <div className="login-logo">S</div>
+            <img className="login-logo" src="../../public/logo.jpeg" alt="splitHappens" />
             <h1 className="login-title">Something went wrong</h1>
             <p className="login-subtitle">
               {String(this.state.error?.message || this.state.error)}
